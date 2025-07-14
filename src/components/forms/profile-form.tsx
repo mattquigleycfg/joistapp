@@ -38,6 +38,54 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
     values: data
   });
 
+  // Function to calculate stub positions based on spacing and length
+  const calculateStubPositions = React.useCallback((length: number, spacing: number): number[] => {
+    if (length <= 662) return []; // Not enough length for first and last stubs
+
+    const firstStub = 331;
+    const lastStub = length - 331;
+    const availableLength = lastStub - firstStub;
+    
+    if (availableLength <= 0) return [firstStub];
+    
+    const positions = [firstStub];
+    
+    // Calculate intermediate positions based on spacing
+    let currentPosition = firstStub;
+    while (currentPosition + spacing < lastStub) {
+      currentPosition += spacing;
+      positions.push(currentPosition);
+    }
+    
+    // Add the last stub position
+    positions.push(lastStub);
+    
+    return positions;
+  }, []);
+
+  // Auto-calculate stub positions when spacing or length changes (for Bearer only)
+  React.useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      // Auto-calculate stub positions when stub spacing or length changes
+      if (value.profileType === 'Bearer' && 
+          (name === 'stubSpacing' || name === 'length') && 
+          value.stubSpacing && value.length) {
+        const newPositions = calculateStubPositions(value.length, value.stubSpacing);
+        form.setValue('stubPositions', newPositions, { shouldValidate: true });
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form, calculateStubPositions]);
+
+  // Initial calculation of stub positions for Bearer
+  React.useEffect(() => {
+    if (data.profileType === 'Bearer' && data.stubSpacing && data.length && 
+        (!data.stubPositions || data.stubPositions.length === 0)) {
+      const initialPositions = calculateStubPositions(data.length, data.stubSpacing);
+      form.setValue('stubPositions', initialPositions, { shouldValidate: true });
+    }
+  }, [data.profileType, data.stubSpacing, data.length, data.stubPositions, form, calculateStubPositions]);
+
   React.useEffect(() => {
     const subscription = form.watch((value) => {
       if (value.profileType && value.profileHeight && value.length && 
@@ -63,6 +111,19 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
                   // When switching to Joist, default the hole type to 200 mm round
                   if (value === 'Joist' && form.getValues('holeType') !== '200mm') {
                     form.setValue('holeType', '200mm');
+                  }
+                  // When switching to Bearer, default the hole type to No Holes and calculate stub positions
+                  if (value === 'Bearer') {
+                    if (form.getValues('holeType') !== 'No Holes') {
+                      form.setValue('holeType', 'No Holes');
+                    }
+                    // Auto-calculate stub positions when switching to Bearer
+                    const length = form.getValues('length');
+                    const spacing = form.getValues('stubSpacing');
+                    if (length && spacing) {
+                      const newPositions = calculateStubPositions(length, spacing);
+                      form.setValue('stubPositions', newPositions, { shouldValidate: true });
+                    }
                   }
                 }}
                 value={field.value}
@@ -175,7 +236,7 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
                 <FormLabel>Stub Positions (mm, comma separated)</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder="e.g., 1500, 3000, 4500"
+                    placeholder="Auto-calculated based on spacing - editable"
                     value={field.value?.join(', ') || ''}
                     onChange={(e) => {
                       const nums = e.target.value
@@ -186,6 +247,9 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
                     }}
                   />
                 </FormControl>
+                <div className="text-xs text-gray-500 mt-1">
+                  First stub at 331mm, last stub at {(form.watch('length') || 0) - 331}mm
+                </div>
                 <FormMessage />
               </FormItem>
             )}

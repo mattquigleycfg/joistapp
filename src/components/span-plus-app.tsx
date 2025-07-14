@@ -22,11 +22,11 @@ export function SpanPlusApp() {
 
   const [profileData, setProfileData] = useState<ProfileData>({
     profileType: 'Bearer',
-    profileHeight: 300,
+    profileHeight: 350,
     length: 5200,
     joistSpacing: 600,
     stubSpacing: 1200,
-    holeType: '115 Round',
+    holeType: 'No Holes',
     holeSpacing: 650,
     punchStations: [
       { station: 'BOLT HOLE', enabled: true },
