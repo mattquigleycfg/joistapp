@@ -69,19 +69,15 @@ export const CuttingListTable: React.FC<CuttingListTableProps> = ({
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Part Code</TableHead>
-          <TableHead>Qty</TableHead>
-          <TableHead>Length</TableHead>
           <TableHead>Punch Station</TableHead>
           <TableHead>Description</TableHead>
           <TableHead>Specifications</TableHead>
+          <TableHead>Qty</TableHead>
+          <TableHead>Length</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         <TableRow>
-          <TableCell rowSpan={rowSpan}>{partCode}</TableCell>
-          <TableCell rowSpan={rowSpan}>{quantity}</TableCell>
-          <TableCell rowSpan={rowSpan}>{length}mm</TableCell>
           <TableCell className="flex items-center gap-2">
             <span
               className="w-3 h-3 rounded-sm"
@@ -91,6 +87,8 @@ export const CuttingListTable: React.FC<CuttingListTableProps> = ({
           </TableCell>
           <TableCell>Flange Bolt Hole</TableCell>
           <TableCell>{boltSummary.summary}</TableCell>
+          <TableCell rowSpan={rowSpan}>{quantity}</TableCell>
+          <TableCell rowSpan={rowSpan}>{length}mm</TableCell>
         </TableRow>
         <TableRow>
           <TableCell className="flex items-center gap-2">

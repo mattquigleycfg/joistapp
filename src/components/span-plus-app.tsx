@@ -233,28 +233,21 @@ export function SpanPlusApp() {
                   <CardContent>
                     {ncGenerator && (
                       <div className="space-y-4">
-                        <div className="inline-block bg-white p-4 rounded-md shadow">
-                          <CuttingListTable
-                            ncGenerator={ncGenerator}
-                            partCode={ncGenerator.getPartCode()}
-                            quantity={exportData.quantity}
-                            length={profileData.length}
-                            holeType={profileData.holeType}
-                          />
-                        </div>
-
-                        {/* Inline drawing preview below table */}
-                        <div className="mt-6">
-                          <VisualizationPanel
-                            platformData={platformData}
-                            profileData={profileData}
-                            ncGenerator={ncGenerator}
-                          />
+                        <div className="w-full overflow-x-auto">
+                          <div className="bg-white p-4 rounded-md shadow min-w-fit">
+                            <CuttingListTable
+                              ncGenerator={ncGenerator}
+                              partCode={ncGenerator.getPartCode()}
+                              quantity={exportData.quantity}
+                              length={profileData.length}
+                              holeType={profileData.holeType}
+                            />
+                          </div>
                         </div>
 
                         <div>
                           <h3 className="font-semibold mb-2">CSV Preview</h3>
-                          <pre className="bg-gray-100 p-3 rounded text-xs overflow-x-auto">
+                          <pre className="bg-gray-100 p-3 rounded text-xs overflow-x-auto max-h-48">
                             {ncGenerator.generateCSV()}
                           </pre>
                         </div>
