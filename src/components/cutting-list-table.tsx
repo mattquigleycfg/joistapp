@@ -7,6 +7,7 @@ const COLOR_MAP: Record<string, string> = {
   'DIMPLE': '#f59e0b',
   'WEB TAB': '#22c55e',
   'SERVICE HOLE': '#3b82f6',
+  'STUB POSITION': '#9333ea',
 };
 
 interface CuttingListTableProps {
@@ -55,15 +56,22 @@ export const CuttingListTable: React.FC<CuttingListTableProps> = ({
   const dimplePositions = calcs.dimples.filter((d) => d.active).map((d) => roundOne(d.position));
   const webTabPositions = calcs.webHoles.filter((w) => w.active).map((w) => roundOne(w.position));
   const serviceHolePositions = calcs.serviceHoles.filter((s) => s.active).map((s) => roundOne(s.position));
+  const stubPositions = calcs.stubs.filter((s) => s.active).map((s) => roundOne(s.position));
 
   const boltSummary = formatPunchSummary(boltPositions);
   const dimpleSummary = formatPunchSummary(dimplePositions, 450);
   const webTabSummary = formatPunchSummary(webTabPositions, webTabPositions.length > 1 ? webTabPositions[1] - webTabPositions[0] : undefined);
   const serviceSpacing = serviceHolePositions.length > 1 ? Math.round(serviceHolePositions[1] - serviceHolePositions[0]) : undefined;
   const serviceHoleSummary = formatPunchSummary(serviceHolePositions, serviceSpacing);
+  const stubSummary = formatPunchSummary(stubPositions);
 
   const hasServiceHoles = serviceHolePositions.length > 0;
-  const rowSpan = hasServiceHoles ? 4 : 3;
+  const hasStubPositions = stubPositions.length > 0;
+  
+  // Calculate row span based on what types of holes are present
+  let rowSpan = 3; // Base: bolt holes, dimples, web tabs
+  if (hasServiceHoles) rowSpan++;
+  if (hasStubPositions) rowSpan++;
 
   return (
     <Table>
@@ -123,6 +131,19 @@ export const CuttingListTable: React.FC<CuttingListTableProps> = ({
             </TableCell>
             <TableCell>Service Hole</TableCell>
             <TableCell>{serviceHoleSummary.summary}</TableCell>
+          </TableRow>
+        )}
+        {hasStubPositions && (
+          <TableRow>
+            <TableCell className="flex items-center gap-2">
+              <span
+                className="w-3 h-3 rounded-sm"
+                style={{ backgroundColor: COLOR_MAP['STUB POSITION'] }}
+              />
+              STUB POSITION
+            </TableCell>
+            <TableCell>Stub Connection Point</TableCell>
+            <TableCell>{stubSummary.summary}</TableCell>
           </TableRow>
         )}
       </TableBody>

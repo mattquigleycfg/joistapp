@@ -72,6 +72,54 @@ export function VisualizationPanel({ platformData: _platformData, profileData, n
     return Math.max(actualDiameter * scale, 3); // Use same scale as profile, minimum 3px for visibility
   };
 
+  // Component to render stub pattern based on provided SVG
+  const StubPattern = ({ centerX, centerY, patternScale }: { centerX: number; centerY: number; patternScale: number }) => {
+    // Original SVG viewBox was 290.72 x 472
+    // Scale factor to fit the pattern appropriately - increased for more spacing
+    const stubRadius = Math.max(4 * patternScale, 2);
+    
+    // Positions based on original SVG, scaled up for more spacing between holes
+    const spacing = 1.3; // Increase spacing between holes
+    const positions = [
+      // Top group - moved closer to top flange
+      { x: 26.66 * spacing, y: 26.66 * spacing },
+      { x: 264.06 * spacing, y: 26.66 * spacing },
+      { x: 26.66 * spacing, y: 142.51 * spacing },
+      { x: 264.06 * spacing, y: 142.51 * spacing },
+      // Bottom group - moved closer to bottom flange
+      { x: 26.66 * spacing, y: 329.49 * spacing },
+      { x: 264.06 * spacing, y: 329.49 * spacing },
+      { x: 26.66 * spacing, y: 445.34 * spacing },
+      { x: 264.06 * spacing, y: 445.34 * spacing },
+    ];
+
+    // Scale the original SVG coordinates to fit our pattern size - increased for more spacing
+    const patternWidth = 290.72 * patternScale * spacing;
+    const patternHeight = 472 * patternScale * spacing;
+    
+    return (
+      <g>
+        {positions.map((pos, index) => {
+          const x = centerX - (patternWidth / 2) + (pos.x * patternScale);
+          const y = centerY - (patternHeight / 2) + (pos.y * patternScale);
+          
+          return (
+            <circle
+              key={`stub-circle-${index}`}
+              cx={x}
+              cy={y}
+              r={stubRadius}
+              fill="#9333ea"
+              stroke="#7c3aed"
+              strokeWidth="1"
+              opacity="0.9"
+            />
+          );
+        })}
+      </g>
+    );
+  };
+
   return (
     <div className="w-full h-[700px] bg-slate-50 rounded-lg border overflow-hidden">
       <svg
@@ -236,6 +284,25 @@ export function VisualizationPanel({ platformData: _platformData, profileData, n
             );
           })}
         
+        {/* Stub positions (purple patterns) - positioned closer to flanges */}
+        {calculations.stubs
+          .filter(stub => stub.active)
+          .map((stub, index) => {
+            const stubX = offsetX + stub.position * scale;
+            // Position the pattern so top holes are closer to top flange, bottom holes closer to bottom flange
+            const stubY = offsetY + profileHeight / 2;
+            const patternScale = Math.max(scale * 0.25, 0.025); // Slightly increased scale for better visibility
+            
+            return (
+              <StubPattern
+                key={`stub-${index}`}
+                centerX={stubX}
+                centerY={stubY}
+                patternScale={patternScale}
+              />
+            );
+          })}
+        
         {/* Dimension lines and text */}
         {/* Length dimension */}
         <line
@@ -334,9 +401,27 @@ export function VisualizationPanel({ platformData: _platformData, profileData, n
             Service Holes ({profileData.holeType})
           </text>
           
+          {/* Stub positions legend */}
+          <g transform={`translate(0, ${legendSpacing * 3})`}>
+            {/* Mini stub pattern for legend - with increased spacing */}
+            <g>
+              <circle cx="4" cy="-4" r="2" fill="#9333ea" stroke="#7c3aed" strokeWidth="0.5" opacity="0.9" />
+              <circle cx="16" cy="-4" r="2" fill="#9333ea" stroke="#7c3aed" strokeWidth="0.5" opacity="0.9" />
+              <circle cx="4" cy="0" r="2" fill="#9333ea" stroke="#7c3aed" strokeWidth="0.5" opacity="0.9" />
+              <circle cx="16" cy="0" r="2" fill="#9333ea" stroke="#7c3aed" strokeWidth="0.5" opacity="0.9" />
+              <circle cx="4" cy="4" r="2" fill="#9333ea" stroke="#7c3aed" strokeWidth="0.5" opacity="0.9" />
+              <circle cx="16" cy="4" r="2" fill="#9333ea" stroke="#7c3aed" strokeWidth="0.5" opacity="0.9" />
+              <circle cx="4" cy="8" r="2" fill="#9333ea" stroke="#7c3aed" strokeWidth="0.5" opacity="0.9" />
+              <circle cx="16" cy="8" r="2" fill="#9333ea" stroke="#7c3aed" strokeWidth="0.5" opacity="0.9" />
+            </g>
+            <text x="35" y="6" fontSize="14" fill="#374151" fontFamily="Arial, sans-serif">
+              Stub Positions
+            </text>
+          </g>
+          
           {/* Dimples legend (only for joists) */}
           {profileData.profileType === 'Joist' && (() => {
-            const dimY = legendSpacing * 3;
+            const dimY = legendSpacing * 4;
             const dimSize = 8;
             return (
               <>
