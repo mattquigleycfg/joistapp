@@ -6,12 +6,13 @@ export interface PlatformData {
 }
 
 export interface ProfileData {
-  profileType: 'Joist' | 'Bearer';
+  profileType: 'Joist Single' | 'Bearer Single' | 'Joist Box' | 'Bearer Box';
   profileHeight: number;
   length: number;
   joistSpacing: number;
   stubSpacing: number;
   stubPositions?: number[];
+  stubsEnabled: boolean;
   holeType: '50mm' | '200mm' | '200mm x 400mm' | '115 Round' | 'No Holes';
   holeSpacing: number;
   /** Selected punch stations and their settings */

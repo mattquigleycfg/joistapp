@@ -7,14 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { ProfileData, PunchStationType } from '@/types/form-types';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 
 const profileSchema = z.object({
-  profileType: z.enum(['Joist', 'Bearer']),
+  profileType: z.enum(['Joist Single', 'Bearer Single', 'Joist Box', 'Bearer Box']),
   profileHeight: z.number().min(200).max(500),
   length: z.number().min(1000).max(15000),
   joistSpacing: z.number().min(400).max(1200),
   stubSpacing: z.number().min(600).max(2400),
+  stubsEnabled: z.boolean(),
   holeType: z.enum(['50mm', '200mm', '200mm x 400mm', '115 Round', 'No Holes']),
   holeSpacing: z.number().min(400).max(1000),
   punchStations: z.array(z.object({
@@ -108,12 +109,18 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
               <Select
                 onValueChange={(value) => {
                   field.onChange(value);
-                  // When switching to Joist, default the hole type to 200 mm round
-                  if (value === 'Joist' && form.getValues('holeType') !== '200mm') {
+                  // When switching to Joist Single or Joist Box, default the hole type to 200 mm round
+                  if ((value === 'Joist Single' || value === 'Joist Box') && form.getValues('holeType') !== '200mm') {
                     form.setValue('holeType', '200mm');
                   }
-                  // When switching to Bearer, default the hole type to No Holes and calculate stub positions
-                  if (value === 'Bearer') {
+                  // When switching to Joist Box, enable endBoxJoist by default
+                  if (value === 'Joist Box') {
+                    form.setValue('endBoxJoist', true);
+                  } else if (value === 'Joist Single') {
+                    form.setValue('endBoxJoist', false);
+                  }
+                  // When switching to Bearer Single or Bearer Box, default the hole type to No Holes and calculate stub positions
+                  if (value === 'Bearer Single' || value === 'Bearer Box') {
                     if (form.getValues('holeType') !== 'No Holes') {
                       form.setValue('holeType', 'No Holes');
                     }
@@ -134,8 +141,10 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="Joist">Joist</SelectItem>
-                  <SelectItem value="Bearer">Bearer</SelectItem>
+                  <SelectItem value="Joist Single">Joist Single</SelectItem>
+                  <SelectItem value="Bearer Single">Bearer Single</SelectItem>
+                  <SelectItem value="Joist Box">Joist Box</SelectItem>
+                  <SelectItem value="Bearer Box">Bearer Box</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -193,7 +202,7 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
           name="joistSpacing"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Joist Spacing (mm)</FormLabel>
+              <FormLabel>Joist Spacing (Web Tabs)</FormLabel>
               <FormControl>
                 <Input 
                   type="number" 
@@ -206,6 +215,7 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
             </FormItem>
           )}
         />
+
 
         <FormField
           control={form.control}
@@ -302,39 +312,62 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
           )}
         />
 
-        {/* End / Box Joist checkbox visible for Joist */}
-        {form.watch('profileType') === 'Joist' && (
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              checked={form.watch('endBoxJoist') || false}
-              onCheckedChange={(value) => form.setValue('endBoxJoist', !!value)}
-            />
-            <span className="text-sm">End / Box Joist</span>
-          </div>
-        )}
 
         {/* Punch Station Selection */}
-        <div className="space-y-2">
-          <FormLabel>Punch Stations</FormLabel>
+        <div className="space-y-4">
+          <FormLabel className="text-base font-medium">Punch Stations</FormLabel>
+          
+          {/* Stubs On/Off toggle */}
+          <div className="grid grid-cols-1 gap-3 rounded-lg border p-3 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5 flex-1 pr-4">
+                <span className="text-sm font-medium">Stubs On/Off</span>
+                <p className="text-xs text-muted-foreground">
+                  Enable or disable stub positions in visualization and exports
+                </p>
+              </div>
+              <div className="flex-shrink-0">
+                <Switch
+                  checked={form.watch('stubsEnabled') || false}
+                  onCheckedChange={(value) => form.setValue('stubsEnabled', !!value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Individual Punch Station Switches */}
           {(['BOLT HOLE','DIMPLE','WEB TAB','M SERVICE HOLE','SMALL SERVICE HOLE'] as PunchStationType[]).map((station) => {
             const index = form.getValues('punchStations').findIndex(ps => ps.station === station);
             const checked = index !== -1 ? form.getValues('punchStations')[index].enabled : false;
             return (
-              <div key={station} className="flex items-center space-x-2">
-                <Checkbox
-                  checked={checked}
-                  onCheckedChange={(value) => {
-                    const current = form.getValues('punchStations');
-                    const existingIndex = current.findIndex(ps => ps.station === station);
-                    if (existingIndex !== -1) {
-                      current[existingIndex].enabled = !!value;
-                    } else {
-                      current.push({ station, enabled: !!value });
-                    }
-                    form.setValue('punchStations', current as any);
-                  }}
-                />
-                <span>{station}</span>
+              <div key={station} className="grid grid-cols-1 gap-3 rounded-lg border p-3 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5 flex-1 pr-4">
+                    <span className="text-sm font-medium">{station}</span>
+                    <p className="text-xs text-muted-foreground">
+                      {station === 'BOLT HOLE' && 'Flange bolt holes for structural connections'}
+                      {station === 'DIMPLE' && 'Flange stitch dimples for reinforcement'}
+                      {station === 'WEB TAB' && 'Web connection tabs for joist connections'}
+                      {station === 'M SERVICE HOLE' && 'Main service holes for utilities'}
+                      {station === 'SMALL SERVICE HOLE' && 'Small service holes for utilities'}
+                    </p>
+                  </div>
+                  <div className="flex-shrink-0">
+                    <Switch
+                      checked={checked}
+                      onCheckedChange={(value) => {
+                        const current = form.getValues('punchStations');
+                        const existingIndex = current.findIndex(ps => ps.station === station);
+                        if (existingIndex !== -1) {
+                          current[existingIndex].enabled = !!value;
+                        } else {
+                          current.push({ station, enabled: !!value });
+                        }
+                        form.setValue('punchStations', current as any);
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
             )
           })}

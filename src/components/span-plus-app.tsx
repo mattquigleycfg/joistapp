@@ -21,11 +21,12 @@ export function SpanPlusApp() {
   });
 
   const [profileData, setProfileData] = useState<ProfileData>({
-    profileType: 'Bearer',
+    profileType: 'Bearer Single',
     profileHeight: 350,
     length: 5200,
     joistSpacing: 600,
     stubSpacing: 1200,
+    stubsEnabled: true,
     holeType: 'No Holes',
     holeSpacing: 650,
     punchStations: [
@@ -34,6 +35,7 @@ export function SpanPlusApp() {
       { station: 'WEB TAB', enabled: true },
       { station: 'M SERVICE HOLE', enabled: true },
     ],
+    endBoxJoist: false,
   });
 
   const [exportData, setExportData] = useState<ExportData>({
@@ -265,7 +267,7 @@ export function SpanPlusApp() {
               <CardHeader>
                 <CardTitle>Technical Drawing</CardTitle>
                 <CardDescription>
-                  Interactive visualization of the {profileData.profileType.toLowerCase()} profile with dimensions
+                  Interactive visualization of the {profileData.profileType.toLowerCase().replace(' single', '').replace(' box', '')} profile with dimensions
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
