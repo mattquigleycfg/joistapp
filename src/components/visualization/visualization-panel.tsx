@@ -1,6 +1,14 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { PlatformData, ProfileData } from '@/types/form-types';
 import { NCFileGenerator } from '@/lib/nc-generator';
+import { PunchEditorTable } from '@/components/punch-editor-table';
+
+interface Punch {
+  id: string;
+  position: number;
+  type: string;
+  active: boolean;
+}
 
 interface VisualizationPanelProps {
   platformData: PlatformData;
@@ -9,27 +17,41 @@ interface VisualizationPanelProps {
 }
 
 export function VisualizationPanel({ platformData: _platformData, profileData, ncGenerator }: VisualizationPanelProps) {
+  const [manualPunches, setManualPunches] = useState<Punch[] | null>(null);
+  
+  // Handle punch updates from the editor table
+  const handlePunchesUpdate = (punches: Punch[]) => {
+    setManualPunches(punches);
+    
+    // Update the NC generator with manual punches
+    if (ncGenerator) {
+      ncGenerator.setManualPunches(punches);
+    }
+  };
+  
   const svgData = useMemo(() => {
     if (!ncGenerator) return null;
 
     const calculations = ncGenerator.getCalculations();
     
-    // SVG dimensions – enlarged for better visibility
+    // SVG dimensions – reduced height to show table above fold
     const svgWidth = 1200;
-    const svgHeight = 700;
+    const svgHeight = 400;
     
     // Use a consistent scale that maintains proper proportions
-    // Base scale on the profile length to fit within the available width
-    // Allow a larger maximum scale (0.18) for clearer visuals
-    const baseScale = Math.min((svgWidth - 150) / profileData.length, 0.18);
+    // Ensure 150px padding from edges
+    // Reduced max scale for smaller viewport
+    const maxWidthScale = (svgWidth - 300) / profileData.length; // 150px padding on each side
+    const maxHeightScale = (svgHeight - 300) / profileData.profileHeight; // 150px padding top/bottom
+    const baseScale = Math.min(maxWidthScale, maxHeightScale, 0.12);
     
     // Scaled dimensions - use same scale for both length and height to maintain proportions
     const profileLength = profileData.length * baseScale;
     const profileHeight = profileData.profileHeight * baseScale;
     
-    // Center the profile in the SVG
+    // Center the profile in the SVG with proper padding
     const offsetX = (svgWidth - profileLength) / 2;
-    const offsetY = (svgHeight - profileHeight) / 2 - 20;
+    const offsetY = (svgHeight - profileHeight) / 2;
 
     // Pre-calculate flange and bolt-hole vertical positions
     const flangeHeight = 63 * baseScale;
@@ -56,7 +78,7 @@ export function VisualizationPanel({ platformData: _platformData, profileData, n
 
   if (!svgData) {
     return (
-      <div className="w-full h-[700px] bg-slate-50 rounded-lg border overflow-hidden flex items-center justify-center">
+      <div className="w-full h-[400px] bg-slate-50 rounded-lg border overflow-hidden flex items-center justify-center">
         <div className="text-gray-500">Loading visualization...</div>
       </div>
     );
@@ -121,8 +143,9 @@ export function VisualizationPanel({ platformData: _platformData, profileData, n
   };
 
   return (
-    <div className="w-full h-[700px] bg-slate-50 rounded-lg border overflow-hidden">
-      <svg
+    <>
+      <div className="viz-container w-full h-[400px]">
+        <svg
         width="100%"
         height="100%"
         viewBox={`0 0 ${svgWidth} ${svgHeight}`}
@@ -307,9 +330,9 @@ export function VisualizationPanel({ platformData: _platformData, profileData, n
         {/* Length dimension */}
         <line
           x1={offsetX}
-          y1={offsetY + profileHeight + (80 * scale) + 30}
+          y1={offsetY + profileHeight + flangeHeight + 20}
           x2={offsetX + profileLength}
-          y2={offsetY + profileHeight + (80 * scale) + 30}
+          y2={offsetY + profileHeight + flangeHeight + 20}
           stroke="#374151"
           strokeWidth="1"
           markerEnd="url(#arrowhead)"
@@ -317,11 +340,11 @@ export function VisualizationPanel({ platformData: _platformData, profileData, n
         />
         <text
           x={offsetX + profileLength / 2}
-          y={offsetY + profileHeight + (80 * scale) + 45}
+          y={offsetY + profileHeight + flangeHeight + 35}
           textAnchor="middle"
-          fontSize="14"
-          fill="#374151"
-          fontFamily="Arial, sans-serif"
+          fontSize="12"
+          fill="#4b5563"
+          fontFamily="'Roboto Mono', monospace"
           fontWeight="500"
         >
           Length: {profileData.length}mm
@@ -329,9 +352,9 @@ export function VisualizationPanel({ platformData: _platformData, profileData, n
         
         {/* Height dimension */}
         <line
-          x1={offsetX - 40}
+          x1={offsetX - 30}
           y1={offsetY}
-          x2={offsetX - 40}
+          x2={offsetX - 30}
           y2={offsetY + profileHeight}
           stroke="#374151"
           strokeWidth="1"
@@ -339,14 +362,14 @@ export function VisualizationPanel({ platformData: _platformData, profileData, n
           markerStart="url(#arrowhead)"
         />
         <text
-          x={offsetX - 50}
+          x={offsetX - 40}
           y={offsetY + profileHeight / 2}
           textAnchor="middle"
-          fontSize="14"
-          fill="#374151"
-          fontFamily="Arial, sans-serif"
+          fontSize="12"
+          fill="#4b5563"
+          fontFamily="'Roboto Mono', monospace"
           fontWeight="500"
-          transform={`rotate(-90, ${offsetX - 50}, ${offsetY + profileHeight / 2})`}
+          transform={`rotate(-90, ${offsetX - 40}, ${offsetY + profileHeight / 2})`}
         >
           Height: {profileData.profileHeight}mm
         </text>
@@ -354,90 +377,25 @@ export function VisualizationPanel({ platformData: _platformData, profileData, n
         {/* Profile type and specifications */}
         <text
           x={offsetX}
-          y={offsetY - 40}
-          fontSize="18"
+          y={offsetY - flangeHeight - 25}
+          fontSize="14"
           fontWeight="bold"
-          fill="#1565c0"
-          fontFamily="Arial, sans-serif"
+          fill="#4b5563"
+          fontFamily="'Roboto Mono', monospace"
         >
           {profileData.profileType} Profile - Front View
         </text>
         
         <text
           x={offsetX}
-          y={offsetY - 20}
-          fontSize="12"
-          fill="#64748b"
-          fontFamily="Arial, sans-serif"
+          y={offsetY - flangeHeight - 10}
+          fontSize="11"
+          fill="#4b5563"
+          fontFamily="'Roboto Mono', monospace"
         >
           Hole Type: {profileData.holeType} | Spacing: {profileData.holeSpacing}mm
         </text>
         
-        {/* Legend with enlarged text and spacing */}
-        <g transform={`translate(${offsetX}, ${offsetY + profileHeight + (80 * scale) + 70})`}>
-          {/* Bolt holes legend */}
-          <circle cx="10" cy="0" r={Math.max(12 * scale / 2, 4)} fill="#ef4444" stroke="#dc2626" strokeWidth="1" />
-          <text x="35" y="6" fontSize="14" fill="#374151" fontFamily="Arial, sans-serif">
-            Bolt Holes (Ø12mm)
-          </text>
-          
-          {/* Web tabs legend */}
-          <rect x="0" y={legendSpacing} width={Math.max(40 * scale, 14)} height={Math.max(20 * scale, 10)} fill="#22c55e" stroke="#16a34a" strokeWidth="1" rx="2" />
-          <text x="35" y={legendSpacing + 6} fontSize="14" fill="#374151" fontFamily="Arial, sans-serif">
-            Web Tabs
-          </text>
-          
-          {/* Service holes legend */}
-          <circle 
-            cx="10" 
-            cy={legendSpacing * 2} 
-            r={Math.min(getHoleDiameter(profileData.holeType) / 2, 15)} 
-            fill="#3b82f6" 
-            stroke="#2563eb" 
-            strokeWidth="1" 
-            opacity="0.8"
-          />
-          <text x="35" y={legendSpacing * 2 + 6} fontSize="14" fill="#374151" fontFamily="Arial, sans-serif">
-            Service Holes ({profileData.holeType})
-          </text>
-          
-          {/* Stub positions legend */}
-          <g transform={`translate(0, ${legendSpacing * 3})`}>
-            {/* Mini stub pattern for legend - with increased spacing */}
-            <g>
-              <circle cx="4" cy="-4" r="2" fill="#9333ea" stroke="#7c3aed" strokeWidth="0.5" opacity="0.9" />
-              <circle cx="16" cy="-4" r="2" fill="#9333ea" stroke="#7c3aed" strokeWidth="0.5" opacity="0.9" />
-              <circle cx="4" cy="0" r="2" fill="#9333ea" stroke="#7c3aed" strokeWidth="0.5" opacity="0.9" />
-              <circle cx="16" cy="0" r="2" fill="#9333ea" stroke="#7c3aed" strokeWidth="0.5" opacity="0.9" />
-              <circle cx="4" cy="4" r="2" fill="#9333ea" stroke="#7c3aed" strokeWidth="0.5" opacity="0.9" />
-              <circle cx="16" cy="4" r="2" fill="#9333ea" stroke="#7c3aed" strokeWidth="0.5" opacity="0.9" />
-              <circle cx="4" cy="8" r="2" fill="#9333ea" stroke="#7c3aed" strokeWidth="0.5" opacity="0.9" />
-              <circle cx="16" cy="8" r="2" fill="#9333ea" stroke="#7c3aed" strokeWidth="0.5" opacity="0.9" />
-            </g>
-            <text x="35" y="6" fontSize="14" fill="#374151" fontFamily="Arial, sans-serif">
-              Stub Positions
-            </text>
-          </g>
-          
-          {/* Dimples legend (only for joists) */}
-          {(profileData.profileType === 'Joist Single' || profileData.profileType === 'Joist Box') && (() => {
-            const dimY = legendSpacing * 4;
-            const dimSize = 8;
-            return (
-              <>
-                <polygon
-                  points={`2,${dimY - dimSize} ${10 + dimSize},${dimY} 2,${dimY + dimSize} ${10 - dimSize},${dimY}`}
-                  fill="#f59e0b"
-                  stroke="#d97706"
-                  strokeWidth="1"
-                />
-                <text x="35" y={dimY + 6} fontSize="14" fill="#374151" fontFamily="Arial, sans-serif">
-                  Dimples
-                </text>
-              </>
-            );
-          })()}
-        </g>
         
         {/* Scale indicator */}
         <text
@@ -445,8 +403,8 @@ export function VisualizationPanel({ platformData: _platformData, profileData, n
           y={svgHeight - 10}
           textAnchor="end"
           fontSize="10"
-          fill="#94a3b8"
-          fontFamily="Arial, sans-serif"
+          fill="#6b7280"
+          fontFamily="'Roboto Mono', monospace"
         >
           Scale: 1:{Math.round(1/scale)}
         </text>
@@ -467,7 +425,57 @@ export function VisualizationPanel({ platformData: _platformData, profileData, n
             />
           </marker>
         </defs>
-      </svg>
-    </div>
+        </svg>
+      </div>
+      
+      {/* Punch Editor Table */}
+      <PunchEditorTable
+        key={`${profileData.profileType}-${profileData.length}-${profileData.holeType}`}
+        ncGenerator={ncGenerator}
+        onPunchesUpdate={handlePunchesUpdate}
+        profileLength={profileData.length}
+      />
+      
+      {/* Legend moved below table */}
+      <div className="card-system grid-m-3 grid-p-3">
+        <h3 className="text-header mb-4">Legend</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {/* Bolt holes legend */}
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-4 rounded-full bg-red-500 border border-red-600"></div>
+            <span className="text-body">Bolt Holes (Ø12mm)</span>
+          </div>
+          
+          {/* Web tabs legend */}
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-3 bg-green-500 border border-green-600 rounded-sm"></div>
+            <span className="text-body">Web Tabs</span>
+          </div>
+          
+          {/* Service holes legend */}
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-4 rounded-full bg-blue-500 border border-blue-600 opacity-80"></div>
+            <span className="text-body">Service Holes ({profileData.holeType})</span>
+          </div>
+          
+          {/* Stub positions legend */}
+          <div className="flex items-center space-x-2">
+            <div className="flex space-x-1">
+              <div className="w-2 h-2 rounded-full bg-purple-500 border border-purple-600"></div>
+              <div className="w-2 h-2 rounded-full bg-purple-500 border border-purple-600"></div>
+            </div>
+            <span className="text-body">Stub Positions</span>
+          </div>
+          
+          {/* Dimples legend (only for joists) */}
+          {(profileData.profileType === 'Joist Single' || profileData.profileType === 'Joist Box') && (
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-yellow-500 border border-yellow-600 rotate-45"></div>
+              <span className="text-body">Dimples</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
   );
 }

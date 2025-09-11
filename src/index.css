@@ -1,3 +1,6 @@
+/* Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@300;400;500;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -134,4 +137,217 @@ button:focus-visible {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* -------------------- Design System (inlined) -------------------- */
+/* Typography */
+.text-header {
+  font-family: 'Roboto', sans-serif;
+  font-weight: 700;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.text-subheader {
+  font-family: 'Roboto', sans-serif;
+  font-weight: 300;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.text-body {
+  font-family: 'Roboto', sans-serif;
+  font-weight: 400;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.text-numbers {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 400;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.text-numbers-bold {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 700;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Grid spacing helpers (8px base) */
+.grid-gap-1 { gap: 0.5rem; }
+.grid-gap-2 { gap: 1rem; }
+.grid-gap-3 { gap: 1.5rem; }
+.grid-gap-4 { gap: 2rem; }
+
+.grid-p-1 { padding: 0.5rem; }
+.grid-p-2 { padding: 1rem; }
+.grid-p-3 { padding: 1.5rem; }
+.grid-p-4 { padding: 2rem; }
+
+.grid-m-1 { margin: 0.5rem; }
+.grid-m-2 { margin: 1rem; }
+.grid-m-3 { margin: 1.5rem; }
+.grid-m-4 { margin: 2rem; }
+
+/* Cards / Inputs / Buttons */
+.card-system {
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.card-system:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  transition: box-shadow 0.2s ease;
+}
+
+.input-system {
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.input-system:focus {
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.15);
+  border-color: rgb(59, 130, 246);
+}
+
+.button-system {
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
+}
+
+.button-system:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
+}
+
+/* Expand-on-hover button variant */
+.expand-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  height: 2.25rem; /* ~36px to match shadcn default */
+  padding: 0;
+  border-radius: 10px;
+  background: #1f2937; /* gray-800 */
+  color: #ffffff; /* white icon/text */
+  border: 1px solid transparent;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  transition: width 200ms ease, box-shadow 200ms ease, background 200ms ease, color 200ms ease, padding 200ms ease;
+  width: 40px; /* icon-only base */
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+}
+
+.expand-button:hover {
+  width: 172px; /* reveal label */
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.24);
+  background: #374151; /* gray-700 */
+  color: #ffffff;
+  padding: 0 0.5rem;
+}
+
+.expand-button .label {
+  max-width: 0;
+  opacity: 0;
+  transition: max-width 200ms ease, opacity 200ms ease;
+  font-family: 'Roboto', sans-serif;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.expand-button:hover .label {
+  max-width: 120px;
+  opacity: 1;
+}
+
+/* Ensure icon is visible and centered */
+.expand-button svg {
+  display: block;
+  flex-shrink: 0;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  transition: all 200ms ease;
+}
+
+.expand-button:hover svg {
+  position: relative;
+  left: auto;
+  top: auto;
+  transform: none;
+  margin-right: 0.5rem;
+}
+
+.table-system {
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.table-system th {
+  text-align: center;
+  font-family: 'Roboto', sans-serif;
+  font-weight: 500;
+  padding: 0.75rem;
+  background: rgba(248, 250, 252, 0.8);
+}
+
+.table-system td {
+  text-align: center;
+  padding: 0.75rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* Sidebar alignment */
+.sidebar-system .table-system th,
+.sidebar-system .table-system td {
+  text-align: left;
+}
+
+.sidebar-system,
+.sidebar-system * {
+  text-align: left !important;
+}
+
+/* Numeric typography defaults */
+input[type="number"],
+.number-field,
+.text-numeric,
+.table-system td.number,
+.table-system th.number {
+  font-family: 'Roboto Mono', monospace !important;
+}
+
+/* Visualization container */
+.viz-container {
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background: #f8fafc;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.viz-container text {
+  font-family: 'Roboto Mono', monospace;
+  fill: #4b5563;
+}
+
+/* Simple fade-in animation for header */
+@keyframes fade-in-up {
+  0% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in-up {
+  animation: fade-in-up 500ms ease-out both;
 }

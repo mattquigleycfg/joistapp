@@ -7,10 +7,18 @@ import { ExportForm } from '@/components/forms/export-form';
 import { VisualizationPanel } from '@/components/visualization/visualization-panel';
 import { NCFileGenerator } from '@/lib/nc-generator';
 import { PlatformData, ProfileData, ExportData } from '@/types/form-types';
-import { Factory, Wrench, Download, Eye, List } from 'lucide-react';
+import { Wrench, Download, Eye, List, Maximize2, FileText, Code } from 'lucide-react';
 // Dynamically import heavy libs when needed to avoid initial bundle weight and optimize caching issues
 import { toast } from 'sonner';
 import { CuttingListTable } from '@/components/cutting-list-table';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 
 export function SpanPlusApp() {
   const [platformData, setPlatformData] = useState<PlatformData>({
@@ -124,50 +132,41 @@ export function SpanPlusApp() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-6 py-8 max-w-7xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-600 rounded-lg">
-              <Factory className="h-8 w-8 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Span+ App</h1>
-              <p className="text-gray-600">NC File Generator for Roll Forming Machines</p>
-            </div>
+          <div className="fade-in-up">
+            <h1 className="text-header text-gray-900 text-left">Span+ App</h1>
+            <p className="text-subheader text-gray-600 text-left">NC File Generator for Roll Formed Profiles</p>
           </div>
-          <div className="flex space-x-2">
-            <Card className="px-4 py-2">
-              <div className="text-sm text-gray-600">Profile Type</div>
-              <div className="font-semibold">{profileData.profileType}</div>
+          <div className="flex grid-gap-2">
+            <Card className="card-system grid-p-2">
+              <div className="text-subheader text-gray-600">Profile Type</div>
+              <div className="text-body font-semibold">{profileData.profileType}</div>
             </Card>
-            <Card className="px-4 py-2">
-              <div className="text-sm text-gray-600">Length</div>
-              <div className="font-semibold">{profileData.length}mm</div>
+            <Card className="card-system grid-p-2">
+              <div className="text-subheader text-gray-600">Length</div>
+              <div className="text-numbers-bold">{profileData.length}mm</div>
             </Card>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Left Panel - Input Forms */}
-          <div className="lg:col-span-1 space-y-6">
+          <div className="lg:col-span-1 space-y-6 sidebar-system">
             <Tabs defaultValue="platform" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="platform" className="flex items-center space-x-1">
-                  <Wrench className="h-4 w-4" />
-                  <span>Platform</span>
+              <TabsList className="grid w-full grid-cols-4 h-auto">
+                <TabsTrigger value="platform" className="flex items-center justify-center p-3" title="Platform">
+                  <Wrench className="h-5 w-5" />
                 </TabsTrigger>
-                <TabsTrigger value="profile" className="flex items-center space-x-1">
-                  <Eye className="h-4 w-4" />
-                  <span>Profile</span>
+                <TabsTrigger value="profile" className="flex items-center justify-center p-3" title="Profile">
+                  <Eye className="h-5 w-5" />
                 </TabsTrigger>
-                <TabsTrigger value="export" className="flex items-center space-x-1">
-                  <Download className="h-4 w-4" />
-                  <span>Export</span>
+                <TabsTrigger value="export" className="flex items-center justify-center p-3" title="Export">
+                  <Download className="h-5 w-5" />
                 </TabsTrigger>
-                <TabsTrigger value="cutting" className="flex items-center space-x-1">
-                  <List className="h-4 w-4" />
-                  <span>Cutting List</span>
+                <TabsTrigger value="cutting" className="flex items-center justify-center p-3" title="Cutting List">
+                  <List className="h-5 w-5" />
                 </TabsTrigger>
               </TabsList>
 
@@ -225,48 +224,131 @@ export function SpanPlusApp() {
               </TabsContent>
 
               <TabsContent value="cutting">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Cutting List Preview</CardTitle>
-                    <CardDescription>
-                      Review punch details and CSV before exporting
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {ncGenerator && (
-                      <div className="space-y-4">
-                        <div className="w-full overflow-x-auto">
-                          <div className="bg-white p-4 rounded-md shadow min-w-fit">
-                            <CuttingListTable
-                              ncGenerator={ncGenerator}
-                              partCode={ncGenerator.getPartCode()}
-                              quantity={exportData.quantity}
-                              length={profileData.length}
-                              holeType={profileData.holeType}
-                            />
-                          </div>
-                        </div>
-
+                <div className="space-y-6">
+                  {/* Cutting List Preview Card */}
+                  <Card className="card-system">
+                    <CardHeader className="grid-p-3">
+                      <CardTitle className="text-header">Cutting List Preview</CardTitle>
+                      <CardDescription className="text-subheader">
+                        Review detailed punch positions and specifications
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid-p-3">
+                      <div className="flex items-center space-x-3">
+                        <FileText className="h-8 w-8 text-blue-600" />
                         <div>
-                          <h3 className="font-semibold mb-2">CSV Preview</h3>
-                          <pre className="bg-gray-100 p-3 rounded text-xs overflow-x-auto max-h-48">
-                            {ncGenerator.generateCSV()}
-                          </pre>
+                          <p className="text-body font-medium">Interactive Cutting List</p>
+                          <p className="text-sm text-gray-600">View punch positions and hole specifications</p>
                         </div>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
+                      <div className="mt-4 flex justify-end">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <button className="expand-button" type="button">
+                              <svg 
+                                width="16" 
+                                height="16" 
+                                viewBox="0 0 24 24" 
+                                fill="none" 
+                                stroke="white" 
+                                strokeWidth="2.5"
+                                strokeLinecap="round" 
+                                strokeLinejoin="round"
+                                style={{ margin: 'auto' }}
+                              >
+                                <path d="M15 3h6v6M14 10l6.1-6.1M9 21H3v-6M10 14l-6.1 6.1" />
+                              </svg>
+                              <span className="label ml-2">View Full List</span>
+                            </button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
+                            <DialogHeader>
+                              <DialogTitle className="text-header">Cutting List Preview</DialogTitle>
+                            </DialogHeader>
+                            <div className="overflow-auto max-h-[calc(90vh-120px)]">
+                              {ncGenerator && (
+                                <div className="bg-white p-4 rounded-md">
+                                  <CuttingListTable
+                                    ncGenerator={ncGenerator}
+                                    partCode={ncGenerator.getPartCode()}
+                                    quantity={exportData.quantity}
+                                    length={profileData.length}
+                                    holeType={profileData.holeType}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* CSV Preview Card */}
+                  <Card className="card-system">
+                    <CardHeader className="grid-p-3">
+                      <CardTitle className="text-header">CSV Export Preview</CardTitle>
+                      <CardDescription className="text-subheader">
+                        Review raw CSV data before export
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid-p-3">
+                      <div className="flex items-center space-x-3">
+                        <Code className="h-8 w-8 text-green-600" />
+                        <div>
+                          <p className="text-body font-medium">NC File Data</p>
+                          <p className="text-sm text-gray-600">Raw CSV format for machine processing</p>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex justify-end">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <button className="expand-button" type="button">
+                              <svg 
+                                width="16" 
+                                height="16" 
+                                viewBox="0 0 24 24" 
+                                fill="none" 
+                                stroke="white" 
+                                strokeWidth="2.5"
+                                strokeLinecap="round" 
+                                strokeLinejoin="round"
+                                style={{ margin: 'auto' }}
+                              >
+                                <path d="M15 3h6v6M14 10l6.1-6.1M9 21H3v-6M10 14l-6.1 6.1" />
+                              </svg>
+                              <span className="label ml-2">View CSV Data</span>
+                            </button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+                            <DialogHeader>
+                              <DialogTitle className="text-header">CSV Export Preview</DialogTitle>
+                            </DialogHeader>
+                            <div className="overflow-auto max-h-[calc(90vh-120px)]">
+                              {ncGenerator && (
+                                <div className="bg-gray-50 p-4 rounded-md">
+                                  <pre className="text-numbers text-sm whitespace-pre-wrap">
+                                    {ncGenerator.generateCSV()}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </TabsContent>
             </Tabs>
           </div>
 
           {/* Right Panel - Visualization */}
-          <div className="lg:col-span-2">
-            <Card className="h-full">
-              <CardHeader>
-                <CardTitle>Technical Drawing</CardTitle>
-                <CardDescription>
+          <div className="lg:col-span-3">
+            <Card className="card-system">
+              <CardHeader className="grid-p-3">
+                <CardTitle className="text-header">Technical Drawing</CardTitle>
+                <CardDescription className="text-subheader">
                   Interactive visualization of the {profileData.profileType.toLowerCase().replace(' single', '').replace(' box', '')} profile with dimensions
                 </CardDescription>
               </CardHeader>

@@ -18,9 +18,44 @@ export class NCFileGenerator {
   private calculations: NCCalculations;
   private partCode = '';
   private quantity = 1;
+  private manualPunches: any[] | null = null;
 
   constructor() {
     this.calculations = this.initializeCalculations();
+  }
+  
+  setManualPunches(punches: any[]) {
+    this.manualPunches = punches;
+    // Clear existing calculations and apply manual punches
+    this.calculations.boltHoles = [];
+    this.calculations.webHoles = [];
+    this.calculations.serviceHoles = [];
+    this.calculations.dimples = [];
+    this.calculations.stubs = [];
+    
+    // Convert manual punches to calculation format
+    punches.forEach(punch => {
+      const punchData = { position: punch.position, active: punch.active, type: punch.type };
+      
+      switch(punch.type) {
+        case 'BOLT HOLE':
+          this.calculations.boltHoles.push(punchData);
+          break;
+        case 'WEB TAB':
+          this.calculations.webHoles.push(punchData);
+          break;
+        case 'M SERVICE HOLE':
+        case 'SMALL SERVICE HOLE':
+          this.calculations.serviceHoles.push(punchData);
+          break;
+        case 'DIMPLE':
+          this.calculations.dimples.push(punchData);
+          break;
+        case 'SERVICE':
+          this.calculations.stubs.push(punchData);
+          break;
+      }
+    });
   }
 
   private initializeCalculations(): NCCalculations {
@@ -176,12 +211,12 @@ export class NCFileGenerator {
     }
     // Corner and first/last stub column brackets - only if stubsEnabled is true
     if (stubsEnabled) {
-      const bracketPositions = [131, length - 131, 331, length - 331];
-      bracketPositions.forEach((pos) => {
-        if (pos > 0 && pos < length) {
-          this.calculations.stubs.push({ position: pos, active: true, type: 'SERVICE' });
-        }
-      });
+    const bracketPositions = [131, length - 131, 331, length - 331];
+    bracketPositions.forEach((pos) => {
+      if (pos > 0 && pos < length) {
+        this.calculations.stubs.push({ position: pos, active: true, type: 'SERVICE' });
+      }
+    });
     }
   }
 
