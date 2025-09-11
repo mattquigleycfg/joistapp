@@ -168,7 +168,7 @@ export function VisualizationPanel({ platformData: _platformData, profileData, n
           />
           
           {/* Lips for Joist profile - scaled proportionally */}
-          {profileData.profileType === 'Joist' && (
+          {(profileData.profileType === 'Joist Single' || profileData.profileType === 'Joist Box') && (
             <>
               <rect
                 x={offsetX}
@@ -420,7 +420,7 @@ export function VisualizationPanel({ platformData: _platformData, profileData, n
           </g>
           
           {/* Dimples legend (only for joists) */}
-          {profileData.profileType === 'Joist' && (() => {
+          {(profileData.profileType === 'Joist Single' || profileData.profileType === 'Joist Box') && (() => {
             const dimY = legendSpacing * 4;
             const dimSize = 8;
             return (

@@ -68,7 +68,7 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
   React.useEffect(() => {
     const subscription = form.watch((value, { name }) => {
       // Auto-calculate stub positions when stub spacing or length changes
-      if (value.profileType === 'Bearer' && 
+      if ((value.profileType === 'Bearer Single' || value.profileType === 'Bearer Box') && 
           (name === 'stubSpacing' || name === 'length') && 
           value.stubSpacing && value.length) {
         const newPositions = calculateStubPositions(value.length, value.stubSpacing);
@@ -80,7 +80,7 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
 
   // Initial calculation of stub positions for Bearer
   React.useEffect(() => {
-    if (data.profileType === 'Bearer' && data.stubSpacing && data.length && 
+    if ((data.profileType === 'Bearer Single' || data.profileType === 'Bearer Box') && data.stubSpacing && data.length && 
         (!data.stubPositions || data.stubPositions.length === 0)) {
       const initialPositions = calculateStubPositions(data.length, data.stubSpacing);
       form.setValue('stubPositions', initialPositions, { shouldValidate: true });
@@ -237,7 +237,7 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
         />
 
         {/* Stub positions (only visible for Bearer) */}
-        {form.watch('profileType') === 'Bearer' && (
+        {(form.watch('profileType') === 'Bearer Single' || form.watch('profileType') === 'Bearer Box') && (
           <FormField
             control={form.control}
             name="stubPositions"
