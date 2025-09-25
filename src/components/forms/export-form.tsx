@@ -63,9 +63,14 @@ export function ExportForm({ data, onChange, onExportCSV, onExportPDF }: ExportF
           name="programName"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Program Name</FormLabel>
+              <FormLabel>Program Name (Auto-generated)</FormLabel>
               <FormControl>
-                <Input {...field} placeholder="e.g., B_5200_J575_S1200" />
+                <Input 
+                  {...field} 
+                  readOnly
+                  className="bg-gray-50 cursor-not-allowed"
+                  title="Program name is automatically generated from profile settings"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

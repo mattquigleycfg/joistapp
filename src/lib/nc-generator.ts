@@ -19,13 +19,26 @@ export class NCFileGenerator {
   private partCode = '';
   private quantity = 1;
   private manualPunches: any[] | null = null;
+  private isManualMode = false;
+  private updateVersion = 0; // Track updates to force re-renders
 
   constructor() {
     this.calculations = this.initializeCalculations();
   }
   
-  setManualPunches(punches: any[]) {
+  setManualPunches(punches: any[] | null, profileType?: string) {
+    if (!punches) {
+      // Clear manual mode when punches are reset
+      this.manualPunches = null;
+      this.isManualMode = false;
+      this.updateVersion++;
+      return;
+    }
+    
     this.manualPunches = punches;
+    this.isManualMode = true;
+    this.updateVersion++;
+    
     // Clear existing calculations and apply manual punches
     this.calculations.boltHoles = [];
     this.calculations.webHoles = [];
@@ -56,6 +69,63 @@ export class NCFileGenerator {
           break;
       }
     });
+    
+    // For bearers, maintain bolt/web tab relationship
+    if (profileType && (profileType === 'Bearer Single' || profileType === 'Bearer Box')) {
+      this.syncBearerBoltHolesWithWebTabs();
+    }
+  }
+  
+  private syncBearerBoltHolesWithWebTabs() {
+    // Get all web tab positions
+    const webTabPositions = this.calculations.webHoles
+      .filter(w => w.active)
+      .map(w => w.position);
+    
+    // Calculate actual profile length from stored calculations
+    const profileLength = this.calculations.lengthMod + this.calculations.endExclusion;
+    
+    // Keep track of existing bolt holes at ends (typically 30mm from ends)
+    const endBoltHoles = this.calculations.boltHoles.filter(b => 
+      b.position <= 50 || b.position >= (profileLength - 50)
+    );
+    
+    // Keep only end bolt holes and bolt holes that correspond to web tabs
+    const validBoltHoles = [...endBoltHoles];
+    
+    // Add bolt holes for each web tab position if not already present
+    webTabPositions.forEach(webPos => {
+      const existingBolt = this.calculations.boltHoles.find(b => 
+        Math.abs(b.position - webPos) < 50 // 50mm tolerance
+      );
+      
+      if (existingBolt) {
+        // Keep existing bolt hole at this position
+        if (!validBoltHoles.includes(existingBolt)) {
+          validBoltHoles.push(existingBolt);
+        }
+      } else {
+        // Add new bolt hole at web tab position
+        validBoltHoles.push({
+          position: webPos,
+          active: true,
+          type: 'BOLT HOLE'
+        });
+      }
+    });
+    
+    // Remove bolt holes that don't correspond to web tabs (except end bolts)
+    this.calculations.boltHoles = validBoltHoles;
+  }
+  
+  clearManualMode() {
+    this.manualPunches = null;
+    this.isManualMode = false;
+    this.updateVersion++;
+  }
+  
+  getUpdateVersion() {
+    return this.updateVersion;
   }
 
   private initializeCalculations(): NCCalculations {
@@ -86,9 +156,14 @@ export class NCFileGenerator {
     // Store quantity for CSV generation
     this.quantity = exportData.quantity || 1;
 
-    // Generate a basic part code: e.g., B_J450_12000_A
-    const prefix = (profileType === 'Bearer Single' || profileType === 'Bearer Box') ? 'B' : 'J';
-    this.partCode = `${prefix}_${profileData.profileHeight}_${length}_A`;
+    // Use program name from export data as part code, or generate a basic one as fallback
+    if (exportData.programName) {
+      this.partCode = exportData.programName;
+    } else {
+      // Fallback: Generate a basic part code: e.g., B_J450_12000_A
+      const prefix = (profileType === 'Bearer Single' || profileType === 'Bearer Box') ? 'B' : 'J';
+      this.partCode = `${prefix}_${profileData.profileHeight}_${length}_A`;
+    }
 
     // Update basic parameters
     this.calculations.thickness = 1.8;
@@ -130,16 +205,23 @@ export class NCFileGenerator {
       ? (this.calculations.endExclusion / 2) + (this.calculations.openingCentres * 2) - (this.calculations.openingCentres / 2)
       : joistSpacing;
 
-    // Generate hole positions (pass stub positions for bearer)
-    this.generateHolePositions(
-      profileType,
-      length,
-      joistSpacing,
-      holeType,
-      profileData.stubPositions,
-      profileData.stubsEnabled,
-      profileData.endBoxJoist,
-    );
+    // Only generate automatic hole positions if not in manual mode
+    if (!this.isManualMode) {
+      // Generate hole positions (pass stub positions for bearer)
+      this.generateHolePositions(
+        profileType,
+        length,
+        joistSpacing,
+        holeType,
+        profileData.stubPositions,
+        profileData.stubsEnabled,
+        profileData.endBoxJoist,
+        profileData.punchStations,
+      );
+    } else {
+      // In manual mode, preserve manual punches but update version to trigger re-renders
+      this.updateVersion++;
+    }
   }
 
   private getHoleDiameter(holeType: string): number {
@@ -165,6 +247,7 @@ export class NCFileGenerator {
     stubPositions?: number[],
     stubsEnabled?: boolean,
     endBox?: boolean,
+    punchStations?: any[],
   ) {
     // Clear existing holes
     this.calculations.boltHoles = [];
@@ -174,11 +257,11 @@ export class NCFileGenerator {
     this.calculations.stubs = [];
 
     if (profileType === 'Bearer Single' || profileType === 'Bearer Box') {
-      this.generateBearerHoles(length, joistSpacing, holeType, stubPositions, stubsEnabled);
+      this.generateBearerHoles(length, joistSpacing, holeType, stubPositions, stubsEnabled, punchStations);
     } else {
       // For Joist Single and Joist Box, use the same logic but pass endBox for Joist Box
       const useEndBox = profileType === 'Joist Box';
-      this.generateJoistHoles(length, holeType, useEndBox);
+      this.generateJoistHoles(length, holeType, useEndBox, punchStations);
     }
   }
 
@@ -188,18 +271,48 @@ export class NCFileGenerator {
     holeType: string,
     stubPositions?: number[],
     stubsEnabled?: boolean,
+    punchStations?: any[],
   ) {
-    // Bolt holes: always at 30 mm from ends
-    this.calculations.boltHoles.push({ position: 30, active: true, type: 'BOLT HOLE' });
-    this.calculations.boltHoles.push({ position: length - 30, active: true, type: 'BOLT HOLE' });
+    // Check if punch types are enabled
+    const isBoltHoleEnabled = !punchStations || punchStations.some(ps => ps.station === 'BOLT HOLE' && ps.enabled);
+    
+    // End bolt holes: always at 30 mm from ends (if enabled)
+    if (isBoltHoleEnabled) {
+      this.calculations.boltHoles.push({ position: 30, active: true, type: 'BOLT HOLE' });
+      this.calculations.boltHoles.push({ position: length - 30, active: true, type: 'BOLT HOLE' });
+    }
 
-    // Dimples: every 450 mm CTS starting from 479.5 mm
-    for (let pos = 479.5; pos <= length - 270.5; pos += 450) {
-      this.calculations.dimples.push({ position: pos, active: true, type: 'DIMPLE' });
+    // Check if dimples are enabled
+    const isDimpleEnabled = !punchStations || punchStations.some(ps => ps.station === 'DIMPLE' && ps.enabled);
+    
+    // Dimples: every 450 mm CTS starting from 479.5 mm (if enabled)
+    if (isDimpleEnabled) {
+      for (let pos = 479.5; pos <= length - 270.5; pos += 450) {
+        this.calculations.dimples.push({ position: pos, active: true, type: 'DIMPLE' });
+      }
     }
 
     // Generate coordinated holes to prevent clashes
-    this.generateCoordinatedBearerHoles(length, joistSpacing, holeType);
+    this.generateCoordinatedBearerHoles(length, joistSpacing, holeType, punchStations);
+    
+    // After web tabs are generated, add corresponding bolt holes (if bolt holes are enabled)
+    // Bolt holes should align with web tab positions (where joists connect)
+    if (isBoltHoleEnabled) {
+      this.calculations.webHoles.forEach(webTab => {
+        // Check if a bolt hole already exists near this position (within 50mm tolerance)
+        const existingBolt = this.calculations.boltHoles.some(bolt => 
+          Math.abs(bolt.position - webTab.position) < 50
+        );
+        
+        if (!existingBolt && webTab.active) {
+          this.calculations.boltHoles.push({ 
+            position: webTab.position, 
+            active: true, 
+            type: 'BOLT HOLE' 
+          });
+        }
+      });
+    }
 
     // Stubs using explicit positions (stub punch coded as SERVICE) - only if stubsEnabled is true
     if (stubsEnabled && stubPositions && stubPositions.length) {
@@ -220,18 +333,26 @@ export class NCFileGenerator {
     }
   }
 
-  private generateJoistHoles(length: number, holeType: string, endBox?: boolean) {
-    // Joist bolt holes at 30 mm from ends
-    this.calculations.boltHoles.push({ position: 30, active: true, type: 'BOLT HOLE' });
-    this.calculations.boltHoles.push({ position: length - 30, active: true, type: 'BOLT HOLE' });
+  private generateJoistHoles(length: number, holeType: string, endBox?: boolean, punchStations?: any[]) {
+    // Check if punch types are enabled
+    const isBoltHoleEnabled = !punchStations || punchStations.some(ps => ps.station === 'BOLT HOLE' && ps.enabled);
+    const isDimpleEnabled = !punchStations || punchStations.some(ps => ps.station === 'DIMPLE' && ps.enabled);
+    
+    // Joist bolt holes at 30 mm from ends (if enabled)
+    if (isBoltHoleEnabled) {
+      this.calculations.boltHoles.push({ position: 30, active: true, type: 'BOLT HOLE' });
+      this.calculations.boltHoles.push({ position: length - 30, active: true, type: 'BOLT HOLE' });
+    }
 
-    // Dimples: every 409.5 mm CTS starting from 509.5 mm
-    for (let pos = 509.5; pos <= length - 100; pos += 409.5) {
-      this.calculations.dimples.push({ position: pos, active: true, type: 'DIMPLE' });
+    // Dimples: every 409.5 mm CTS starting from 509.5 mm (if enabled)
+    if (isDimpleEnabled) {
+      for (let pos = 509.5; pos <= length - 100; pos += 409.5) {
+        this.calculations.dimples.push({ position: pos, active: true, type: 'DIMPLE' });
+      }
     }
 
     // Generate coordinated holes to prevent clashes
-    this.generateCoordinatedJoistHoles(length, holeType);
+    this.generateCoordinatedJoistHoles(length, holeType, punchStations);
 
     // End/Box Joist bracket SERVICE punches
     if (endBox) {
@@ -240,7 +361,16 @@ export class NCFileGenerator {
     }
   }
 
-  private generateCoordinatedJoistHoles(length: number, holeType: string) {
+  private generateCoordinatedJoistHoles(length: number, holeType: string, punchStations?: any[]) {
+    // Check if punch types are enabled
+    const isWebTabEnabled = !punchStations || punchStations.some(ps => ps.station === 'WEB TAB' && ps.enabled);
+    const isServiceHoleEnabled = !punchStations || punchStations.some(ps => 
+      (ps.station === 'M SERVICE HOLE' || ps.station === 'SMALL SERVICE HOLE') && ps.enabled
+    );
+    
+    // If web tabs are disabled, don't generate them
+    if (!isWebTabEnabled) return;
+    
     // Calculate available length (excluding end exclusions)
     const availableLength = length - this.calculations.endExclusion;
     const startOffset = this.calculations.endExclusion / 2;
@@ -250,17 +380,18 @@ export class NCFileGenerator {
     const minWebTabSpacing = 1000; // 1200mm - 200mm tolerance = 1000mm minimum
     const maxWebTabSpacing = 2600; // 2400mm + 200mm tolerance = 2600mm maximum
     
-    // Generate service holes first (if enabled)
-    if (holeType !== 'No Holes') {
+    // Generate service holes first (if enabled and not "No Holes")
+    if (holeType !== 'No Holes' && isServiceHoleEnabled) {
       this.generateServiceHolesWithWebTabs(
         startOffset, 
         startOffset + availableLength, 
         serviceHoleSpacing,
         minWebTabSpacing,
-        maxWebTabSpacing
+        maxWebTabSpacing,
+        punchStations
       );
-    } else {
-      // No service holes, generate web tabs with minimum spacing
+    } else if (isWebTabEnabled) {
+      // No service holes, generate web tabs with minimum spacing (if enabled)
       this.generateWebTabsOnly(
         startOffset,
         startOffset + availableLength,
@@ -268,13 +399,6 @@ export class NCFileGenerator {
       );
     }
     
-    // Always generate web tabs with proper spacing and clearance, regardless of service holes
-    this.generateJoistWebTabs(
-      startOffset,
-      startOffset + availableLength,
-      minWebTabSpacing,
-      maxWebTabSpacing
-    );
   }
 
   private generateServiceHolesWithWebTabs(
@@ -282,8 +406,12 @@ export class NCFileGenerator {
     endPos: number,
     serviceHoleSpacing: number,
     minWebTabSpacing: number,
-    maxWebTabSpacing: number
+    maxWebTabSpacing: number,
+    punchStations?: any[]
   ) {
+    // Check if web tabs are enabled
+    const isWebTabEnabled = !punchStations || punchStations.some(ps => ps.station === 'WEB TAB' && ps.enabled);
+    
     const availableLength = endPos - startPos;
     
     // Calculate how many service holes we can fit
@@ -302,8 +430,10 @@ export class NCFileGenerator {
       this.calculations.serviceHoles.push({ position: roundHalf(position), active: true, type: 'M SERVICE HOLE' });
     }
     
-    // Generate web tabs between service holes with minimum spacing
-    this.generateWebTabsBetweenServiceHoles(servicePositions, minWebTabSpacing, maxWebTabSpacing);
+    // Generate web tabs between service holes with minimum spacing (if enabled)
+    if (isWebTabEnabled) {
+      this.generateWebTabsBetweenServiceHoles(servicePositions, minWebTabSpacing, maxWebTabSpacing);
+    }
   }
 
   private generateWebTabsBetweenServiceHoles(servicePositions: number[], minWebTabSpacing: number, maxWebTabSpacing: number) {
@@ -512,23 +642,33 @@ export class NCFileGenerator {
     });
   }
 
-  private generateCoordinatedBearerHoles(length: number, joistSpacing: number, holeType: string) {
+  private generateCoordinatedBearerHoles(length: number, joistSpacing: number, holeType: string, punchStations?: any[]) {
+    // Check if punch types are enabled
+    const isWebTabEnabled = !punchStations || punchStations.some(ps => ps.station === 'WEB TAB' && ps.enabled);
+    const isServiceHoleEnabled = !punchStations || punchStations.some(ps => 
+      (ps.station === 'M SERVICE HOLE' || ps.station === 'SMALL SERVICE HOLE') && ps.enabled
+    );
+    
+    // If web tabs are disabled, don't generate them
+    if (!isWebTabEnabled) return;
+    
     // Define spacing requirements
     const serviceHoleSpacing = this.calculations.openingCentres; // 650mm
     const webTabSpacing = joistSpacing; // Use joist spacing for web tabs
     const maxWebTabSpacing = 2400; // Maximum 2400mm spacing for web tabs
     
-    // Generate service holes first (if enabled)
-    if (holeType !== 'No Holes') {
+    // Generate service holes first (if enabled and not "No Holes")
+    if (holeType !== 'No Holes' && isServiceHoleEnabled) {
       this.generateServiceHolesWithWebTabs(
         serviceHoleSpacing, 
         length - serviceHoleSpacing, 
         serviceHoleSpacing,
         webTabSpacing, // Use joist spacing as minimum
-        maxWebTabSpacing
+        maxWebTabSpacing,
+        punchStations
       );
-    } else {
-      // No service holes, generate web tabs with joist spacing
+    } else if (isWebTabEnabled) {
+      // No service holes, generate web tabs with joist spacing (if enabled)
       this.generateWebTabsOnly(
         joistSpacing,
         length - joistSpacing,

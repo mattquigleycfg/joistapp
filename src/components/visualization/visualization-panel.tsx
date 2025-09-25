@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { PlatformData, ProfileData } from '@/types/form-types';
+import { ProfileData } from '@/types/form-types';
 import { NCFileGenerator } from '@/lib/nc-generator';
 import { PunchEditorTable } from '@/components/punch-editor-table';
 
@@ -11,20 +11,24 @@ interface Punch {
 }
 
 interface VisualizationPanelProps {
-  platformData: PlatformData;
   profileData: ProfileData;
   ncGenerator: NCFileGenerator | null;
+  onPunchesUpdate?: (punches: any[] | null) => void;
+  onProfileDataUpdate?: (data: Partial<ProfileData>) => void;
 }
 
-export function VisualizationPanel({ platformData: _platformData, profileData, ncGenerator }: VisualizationPanelProps) {
+export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, onProfileDataUpdate }: VisualizationPanelProps) {
   const [manualPunches, setManualPunches] = useState<Punch[] | null>(null);
   
   // Handle punch updates from the editor table
-  const handlePunchesUpdate = (punches: Punch[]) => {
+  const handlePunchesUpdate = (punches: Punch[] | null) => {
     setManualPunches(punches);
     
-    // Update the NC generator with manual punches
-    if (ncGenerator) {
+    // Notify parent component to update NC generator and trigger re-renders
+    if (onPunchesUpdate) {
+      onPunchesUpdate(punches);
+    } else if (ncGenerator) {
+      // Fallback to direct update if no callback provided (for backward compatibility)
       ncGenerator.setManualPunches(punches);
     }
   };
@@ -434,6 +438,34 @@ export function VisualizationPanel({ platformData: _platformData, profileData, n
         ncGenerator={ncGenerator}
         onPunchesUpdate={handlePunchesUpdate}
         profileLength={profileData.length}
+        profileType={profileData.profileType}
+        punchStations={profileData.punchStations}
+        onPunchStationsUpdate={(stations) => {
+          // Update profile data with new station states
+          if (onProfileDataUpdate) {
+            onProfileDataUpdate({ punchStations: stations });
+          }
+          // Trigger manual mode when stations are toggled
+          if (onPunchesUpdate) {
+            // Get current punches and trigger manual mode
+            const currentPunches = ncGenerator?.getCalculations();
+            if (currentPunches) {
+              const allPunches: any[] = [];
+              // Collect active punches after station toggle
+              [...(currentPunches.boltHoles || []),
+               ...(currentPunches.webHoles || []),
+               ...(currentPunches.serviceHoles || []),
+               ...(currentPunches.dimples || []),
+               ...(currentPunches.stubs || [])]
+                .forEach(p => {
+                  if (p.active && stations.some((s: any) => s.station === p.type && s.enabled)) {
+                    allPunches.push(p);
+                  }
+                });
+              onPunchesUpdate(allPunches);
+            }
+          }
+        }}
       />
       
       {/* Legend moved below table */}

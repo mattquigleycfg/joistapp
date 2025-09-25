@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { 
   Trash2, 
   Plus, 
@@ -28,7 +29,9 @@ import {
   Edit3,
   Check,
   X,
-  Copy
+  Copy,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NCFileGenerator } from '@/lib/nc-generator';
@@ -44,8 +47,11 @@ export interface Punch {
 
 interface PunchEditorTableProps {
   ncGenerator: NCFileGenerator | null;
-  onPunchesUpdate: (punches: Punch[]) => void;
+  onPunchesUpdate: (punches: Punch[] | null) => void;
   profileLength: number;
+  profileType?: string;
+  punchStations?: any[];
+  onPunchStationsUpdate?: (stations: any[]) => void;
 }
 
 // Color mapping for punch types
@@ -67,7 +73,14 @@ const punchBadgeColors: Record<PunchType, string> = {
   'SERVICE': 'bg-purple-100 text-purple-800 border-purple-300',
 };
 
-export function PunchEditorTable({ ncGenerator, onPunchesUpdate, profileLength }: PunchEditorTableProps) {
+export function PunchEditorTable({ 
+  ncGenerator, 
+  onPunchesUpdate, 
+  profileLength, 
+  profileType,
+  punchStations,
+  onPunchStationsUpdate 
+}: PunchEditorTableProps) {
   const [punches, setPunches] = useState<Punch[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
@@ -76,10 +89,49 @@ export function PunchEditorTable({ ncGenerator, onPunchesUpdate, profileLength }
   const [selectedPunches, setSelectedPunches] = useState<Set<string>>(new Set());
   const [isSelecting, setIsSelecting] = useState(false);
   
-  // New punch form state
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newPunchType, setNewPunchType] = useState<PunchType>('BOLT HOLE');
-  const [newPunchPosition, setNewPunchPosition] = useState('');
+  // Track which station groups are collapsed
+  const [collapsedStations, setCollapsedStations] = useState<Set<PunchType>>(new Set());
+  
+  // Track station enabled state (synchronized with Profile Settings)
+  const [stationEnabled, setStationEnabled] = useState<Record<PunchType, boolean>>({
+    'BOLT HOLE': true,
+    'DIMPLE': true,
+    'WEB TAB': true,
+    'M SERVICE HOLE': true,
+    'SMALL SERVICE HOLE': true,
+    'SERVICE': true,
+  });
+
+  // Sync station enabled state with Profile Settings
+  useEffect(() => {
+    if (punchStations) {
+      const newEnabled: Record<PunchType, boolean> = {
+        'BOLT HOLE': true,
+        'DIMPLE': true,
+        'WEB TAB': true,
+        'M SERVICE HOLE': true,
+        'SMALL SERVICE HOLE': true,
+        'SERVICE': true,
+      };
+      
+      punchStations.forEach((ps) => {
+        if (ps.station && ps.station in newEnabled) {
+          newEnabled[ps.station as PunchType] = ps.enabled;
+        }
+      });
+      
+      setStationEnabled(newEnabled);
+      
+      // Collapse stations that are disabled
+      const newCollapsed = new Set<PunchType>();
+      (Object.keys(newEnabled) as PunchType[]).forEach(station => {
+        if (!newEnabled[station]) {
+          newCollapsed.add(station);
+        }
+      });
+      setCollapsedStations(newCollapsed);
+    }
+  }, [punchStations]);
 
   // Load punches from NC generator
   useEffect(() => {
@@ -114,7 +166,6 @@ export function PunchEditorTable({ ncGenerator, onPunchesUpdate, profileLength }
     // Reset other state when profile changes
     setSelectedPunches(new Set());
     setEditingId(null);
-    setShowAddForm(false);
   }, [ncGenerator, profileLength]);
 
   // Group punches by type
@@ -157,12 +208,11 @@ export function PunchEditorTable({ ncGenerator, onPunchesUpdate, profileLength }
   };
 
   const handleReset = () => {
-    if (history.length > 0) {
-      setPunches(history[0]);
-      setHistoryIndex(0);
-      onPunchesUpdate(history[0]);
-      setSelectedPunches(new Set());
-    }
+    // Reset to calculated mode - pass null to clear manual mode
+    onPunchesUpdate(null);
+    setSelectedPunches(new Set());
+    setEditingId(null);
+    // The parent will trigger a recalculation and the useEffect will reload the punches
   };
 
   const handleDelete = (id: string) => {
@@ -224,22 +274,84 @@ export function PunchEditorTable({ ncGenerator, onPunchesUpdate, profileLength }
     setEditingId(null);
   };
 
-  const handleAddPunch = () => {
-    const position = parseFloat(newPunchPosition);
-    if (!isNaN(position) && position >= 0 && position <= profileLength) {
-      const newPunch: Punch = {
-        id: `${newPunchType}-${position}-${Date.now()}`,
-        position,
-        type: newPunchType,
-        active: true,
-      };
-      const newPunches = [...punches, newPunch];
-      setPunches(newPunches);
-      addToHistory(newPunches);
-      onPunchesUpdate(newPunches);
-      setNewPunchPosition('');
-      setShowAddForm(false);
+  const handleToggleStation = (station: PunchType, enabled: boolean) => {
+    // Update local state
+    setStationEnabled(prev => ({ ...prev, [station]: enabled }));
+    
+    // Update collapsed state
+    if (!enabled) {
+      setCollapsedStations(prev => new Set([...prev, station]));
+    } else {
+      setCollapsedStations(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(station);
+        return newSet;
+      });
     }
+    
+    // Update Profile Settings
+    if (onPunchStationsUpdate) {
+      const updatedStations = punchStations ? [...punchStations] : [];
+      const existingIndex = updatedStations.findIndex(ps => ps.station === station);
+      
+      if (existingIndex >= 0) {
+        updatedStations[existingIndex].enabled = enabled;
+      } else {
+        updatedStations.push({ station, enabled });
+      }
+      
+      onPunchStationsUpdate(updatedStations);
+    }
+    
+    // If disabling, remove all punches of this type and trigger manual mode
+    if (!enabled) {
+      const filteredPunches = punches.filter(p => p.type !== station);
+      setPunches(filteredPunches);
+      addToHistory(filteredPunches);
+      onPunchesUpdate(filteredPunches);
+    }
+  };
+
+  const handleAddStationPunch = (station: PunchType) => {
+    // If station is disabled, enable it first
+    if (!stationEnabled[station]) {
+      handleToggleStation(station, true);
+    }
+    
+    // Expand the section if collapsed
+    setCollapsedStations(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(station);
+      return newSet;
+    });
+    
+    // Find a suitable position for the new punch
+    const existingPositions = punches
+      .filter(p => p.type === station)
+      .map(p => p.position)
+      .sort((a, b) => a - b);
+    
+    let newPosition = 100; // Default position
+    if (existingPositions.length > 0) {
+      // Place after the last punch of this type
+      newPosition = existingPositions[existingPositions.length - 1] + 50;
+      if (newPosition > profileLength) {
+        // If too far, place before the first punch
+        newPosition = Math.max(50, existingPositions[0] - 50);
+      }
+    }
+    
+    const newPunch: Punch = {
+      id: `${station}-${newPosition}-${Date.now()}`,
+      position: newPosition,
+      type: station,
+      active: true,
+    };
+    
+    const newPunches = [...punches, newPunch];
+    setPunches(newPunches);
+    addToHistory(newPunches);
+    onPunchesUpdate(newPunches);
   };
 
   const toggleSelection = (id: string) => {
@@ -252,11 +364,14 @@ export function PunchEditorTable({ ncGenerator, onPunchesUpdate, profileLength }
     setSelectedPunches(newSelected);
   };
 
+  const isBearer = profileType === 'Bearer Single' || profileType === 'Bearer Box';
+
   return (
     <Card className="card-system grid-m-3">
       <CardHeader className="grid-p-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-header">Punch Station Editor</CardTitle>
+        <div className="flex flex-col space-y-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-header">Punch Station Editor</CardTitle>
           <div className="flex items-center space-x-2">
             {/* Figma-style toolbar */}
             <div className="flex items-center space-x-1 bg-gray-100 rounded-lg p-1">
@@ -311,49 +426,14 @@ export function PunchEditorTable({ ncGenerator, onPunchesUpdate, profileLength }
                 Delete {selectedPunches.size} selected
               </Button>
             )}
-            
-            <Button
-              size="sm"
-              onClick={() => setShowAddForm(!showAddForm)}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Add Punch
-            </Button>
           </div>
         </div>
-        
-        {/* Add punch form */}
-        {showAddForm && (
-          <div className="flex items-center space-x-2 mt-3 p-3 bg-gray-50 rounded-lg">
-            <Select value={newPunchType} onValueChange={(v) => setNewPunchType(v as PunchType)}>
-              <SelectTrigger className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="BOLT HOLE">Bolt Hole</SelectItem>
-                <SelectItem value="DIMPLE">Dimple</SelectItem>
-                <SelectItem value="WEB TAB">Web Tab</SelectItem>
-                <SelectItem value="M SERVICE HOLE">M Service Hole</SelectItem>
-                <SelectItem value="SMALL SERVICE HOLE">Small Service Hole</SelectItem>
-                <SelectItem value="SERVICE">Service</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              type="number"
-              placeholder="Position (mm)"
-              value={newPunchPosition}
-              onChange={(e) => setNewPunchPosition(e.target.value)}
-              className="w-32"
-            />
-            <Button size="sm" onClick={handleAddPunch} className="bg-green-600 hover:bg-green-700">
-              <Check className="h-4 w-4" />
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setShowAddForm(false)}>
-              <X className="h-4 w-4" />
-            </Button>
+        {isBearer && (
+          <div className="text-sm text-amber-600 bg-amber-50 p-2 rounded-md">
+            ⚠️ <strong>Bearer Mode:</strong> Bolt holes automatically align with web tabs. When you edit web tabs, corresponding bolt holes will be updated.
           </div>
         )}
+        </div>
       </CardHeader>
       
       <CardContent className="p-0">
@@ -369,23 +449,69 @@ export function PunchEditorTable({ ncGenerator, onPunchesUpdate, profileLength }
               </TableRow>
             </TableHeader>
             <TableBody>
-              {Object.entries(groupedPunches).map(([type, typePunches]) => (
+              {(Object.keys(stationEnabled) as PunchType[]).map((type) => {
+                const typePunches = groupedPunches[type] || [];
+                const isCollapsed = collapsedStations.has(type);
+                const isEnabled = stationEnabled[type];
+                
+                return (
                 <React.Fragment key={type}>
-                  {/* Group header */}
-                  <TableRow className="bg-gray-50 hover:bg-gray-50">
-                    <TableCell colSpan={isSelecting ? 5 : 4} className="font-semibold">
-                      <div className="flex items-center space-x-2">
-                        <div className={cn("w-3 h-3 rounded-full", punchColors[type as PunchType])} />
-                        <span>{type}</span>
-                        <Badge variant="secondary" className="ml-2">
-                          {typePunches.length} punches
-                        </Badge>
+                  {/* Group header with controls */}
+                  <TableRow className={cn(
+                    "hover:bg-gray-50",
+                    !isEnabled && "bg-gray-50 opacity-60"
+                  )}>
+                    <TableCell colSpan={isSelecting ? 5 : 4} className="font-semibold py-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => {
+                              if (isCollapsed) {
+                                setCollapsedStations(prev => {
+                                  const newSet = new Set(prev);
+                                  newSet.delete(type);
+                                  return newSet;
+                                });
+                              } else {
+                                setCollapsedStations(prev => new Set([...prev, type]));
+                              }
+                            }}
+                          >
+                            {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </Button>
+                          <div className={cn("w-3 h-3 rounded-full", punchColors[type])} />
+                          <span className={cn(!isEnabled && "text-gray-500")}>{type}</span>
+                          {typePunches.length > 0 && (
+                            <Badge variant="secondary" className="ml-2">
+                              {typePunches.length}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleAddStationPunch(type)}
+                            className="h-7 px-2"
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Add
+                          </Button>
+                          <Switch
+                            checked={isEnabled}
+                            onCheckedChange={(checked) => handleToggleStation(type, checked)}
+                            className="data-[state=unchecked]:bg-gray-300"
+                          />
+                        </div>
                       </div>
                     </TableCell>
                   </TableRow>
                   
-                  {/* Punch rows */}
-                  {typePunches.map((punch) => (
+                  {/* Punch rows - only show if not collapsed and enabled */}
+                  {!isCollapsed && isEnabled && typePunches.map((punch) => (
                     <TableRow 
                       key={punch.id}
                       className={cn(
@@ -472,7 +598,8 @@ export function PunchEditorTable({ ncGenerator, onPunchesUpdate, profileLength }
                     </TableRow>
                   ))}
                 </React.Fragment>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         </div>

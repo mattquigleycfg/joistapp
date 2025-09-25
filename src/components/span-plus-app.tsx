@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PlatformForm } from '@/components/forms/platform-form';
 import { ProfileForm } from '@/components/forms/profile-form';
 import { ExportForm } from '@/components/forms/export-form';
 import { VisualizationPanel } from '@/components/visualization/visualization-panel';
 import { NCFileGenerator } from '@/lib/nc-generator';
-import { PlatformData, ProfileData, ExportData } from '@/types/form-types';
-import { Wrench, Download, Eye, List, Maximize2, FileText, Code } from 'lucide-react';
+import { ProfileData, ExportData } from '@/types/form-types';
+import { Download, Eye, List, Maximize2, FileText, Code } from 'lucide-react';
 // Dynamically import heavy libs when needed to avoid initial bundle weight and optimize caching issues
 import { toast } from 'sonner';
 import { CuttingListTable } from '@/components/cutting-list-table';
@@ -21,12 +20,42 @@ import {
 } from '@/components/ui/dialog';
 
 export function SpanPlusApp() {
-  const [platformData, setPlatformData] = useState<PlatformData>({
-    width: 12000,
-    span: 6000,
-    bays: 3,
-    pitch: 2000
-  });
+  // Function to generate program name from profile settings
+  const generateProgramName = (profile: ProfileData): string => {
+    // Determine profile code
+    let profileCode = '';
+    switch (profile.profileType) {
+      case 'Bearer Single':
+        profileCode = 'B';
+        break;
+      case 'Bearer Box':
+        profileCode = 'BB';
+        break;
+      case 'Joist Single':
+        profileCode = 'J';
+        break;
+      case 'Joist Box':
+        profileCode = 'JB';
+        break;
+      default:
+        profileCode = 'B';
+    }
+    
+    // Build program name: ProfileCode_Length_J[JoistSpacing]_S[StubSpacing]
+    let programName = `${profileCode}_${profile.length}`;
+    
+    // Add joist spacing
+    if (profile.joistSpacing) {
+      programName += `_J${profile.joistSpacing}`;
+    }
+    
+    // Add stub spacing (only for bearers)
+    if ((profile.profileType === 'Bearer Single' || profile.profileType === 'Bearer Box') && profile.stubSpacing) {
+      programName += `_S${profile.stubSpacing}`;
+    }
+    
+    return programName;
+  };
 
   const [profileData, setProfileData] = useState<ProfileData>({
     profileType: 'Bearer Single',
@@ -48,21 +77,69 @@ export function SpanPlusApp() {
 
   const [exportData, setExportData] = useState<ExportData>({
     quantity: 2,
-    programName: 'B_5200_J575_S1200'
+    programName: generateProgramName({
+      profileType: 'Bearer Single',
+      profileHeight: 350,
+      length: 5200,
+      joistSpacing: 600,
+      stubSpacing: 1200,
+      stubsEnabled: true,
+      holeType: 'No Holes',
+      holeSpacing: 650,
+      punchStations: [
+        { station: 'BOLT HOLE', enabled: true },
+        { station: 'DIMPLE', enabled: true },
+        { station: 'WEB TAB', enabled: true },
+        { station: 'M SERVICE HOLE', enabled: true },
+      ],
+      endBoxJoist: false,
+    })
   });
 
   const [ncGenerator, setNcGenerator] = useState<NCFileGenerator | null>(null);
+  const [punchUpdateVersion, setPunchUpdateVersion] = useState(0);
 
   useEffect(() => {
     const generator = new NCFileGenerator();
     setNcGenerator(generator);
   }, []);
 
+  // Update program name when profile settings change
+  useEffect(() => {
+    const newProgramName = generateProgramName(profileData);
+    setExportData(prev => ({
+      ...prev,
+      programName: newProgramName
+    }));
+  }, [profileData]);
+
   useEffect(() => {
     if (ncGenerator) {
-      ncGenerator.updateCalculations(platformData, profileData, exportData);
+      // Clear manual mode when profile settings change - Profile Settings should override manual edits
+      ncGenerator.clearManualMode();
+      // Pass null for platformData since it's no longer used
+      ncGenerator.updateCalculations(null as any, profileData, exportData);
+      // Force update after recalculation
+      setPunchUpdateVersion(ncGenerator.getUpdateVersion());
     }
-  }, [platformData, profileData, exportData, ncGenerator]);
+  }, [profileData, exportData, ncGenerator]);
+  
+  // Callback for when manual punches are updated
+  const handleManualPunchesUpdate = (punches: any[] | null) => {
+    if (ncGenerator) {
+      if (punches === null) {
+        // Reset to calculated mode
+        ncGenerator.clearManualMode();
+        // Recalculate with current settings
+        ncGenerator.updateCalculations(null as any, profileData, exportData);
+      } else {
+        // Set manual punches, pass profileType for bolt/web tab sync on bearers
+        ncGenerator.setManualPunches(punches, profileData.profileType);
+      }
+      // Force re-render of all components
+      setPunchUpdateVersion(ncGenerator.getUpdateVersion());
+    }
+  };
 
   const handleExportCSV = () => {
     if (!ncGenerator) {
@@ -154,11 +231,8 @@ export function SpanPlusApp() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Left Panel - Input Forms */}
           <div className="lg:col-span-1 space-y-6 sidebar-system">
-            <Tabs defaultValue="platform" className="w-full">
-              <TabsList className="grid w-full grid-cols-4 h-auto">
-                <TabsTrigger value="platform" className="flex items-center justify-center p-3" title="Platform">
-                  <Wrench className="h-5 w-5" />
-                </TabsTrigger>
+            <Tabs defaultValue="profile" className="w-full">
+              <TabsList className="grid w-full grid-cols-3 h-auto">
                 <TabsTrigger value="profile" className="flex items-center justify-center p-3" title="Profile">
                   <Eye className="h-5 w-5" />
                 </TabsTrigger>
@@ -169,23 +243,6 @@ export function SpanPlusApp() {
                   <List className="h-5 w-5" />
                 </TabsTrigger>
               </TabsList>
-
-              <TabsContent value="platform">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Platform Configuration</CardTitle>
-                    <CardDescription>
-                      Define the overall platform dimensions and layout
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <PlatformForm 
-                      data={platformData} 
-                      onChange={setPlatformData} 
-                    />
-                  </CardContent>
-                </Card>
-              </TabsContent>
 
               <TabsContent value="profile">
                 <Card>
@@ -269,6 +326,7 @@ export function SpanPlusApp() {
                               {ncGenerator && (
                                 <div className="bg-white p-4 rounded-md">
                                   <CuttingListTable
+                                    key={`cutting-list-${punchUpdateVersion}`}
                                     ncGenerator={ncGenerator}
                                     partCode={ncGenerator.getPartCode()}
                                     quantity={exportData.quantity}
@@ -326,7 +384,7 @@ export function SpanPlusApp() {
                             </DialogHeader>
                             <div className="overflow-auto max-h-[calc(90vh-120px)]">
                               {ncGenerator && (
-                                <div className="bg-gray-50 p-4 rounded-md">
+                                <div className="bg-gray-50 p-4 rounded-md" key={`csv-preview-${punchUpdateVersion}`}>
                                   <pre className="text-numbers text-sm whitespace-pre-wrap">
                                     {ncGenerator.generateCSV()}
                                   </pre>
@@ -354,9 +412,12 @@ export function SpanPlusApp() {
               </CardHeader>
               <CardContent className="p-0">
                 <VisualizationPanel 
-                  platformData={platformData}
                   profileData={profileData}
                   ncGenerator={ncGenerator}
+                  onPunchesUpdate={handleManualPunchesUpdate}
+                  onProfileDataUpdate={(updates) => {
+                    setProfileData(prev => ({ ...prev, ...updates }));
+                  }}
                 />
               </CardContent>
             </Card>
@@ -364,11 +425,14 @@ export function SpanPlusApp() {
         </div>
       {/* Hidden cutting-list table for PDF export */}
       {ncGenerator && (
-        <div className="absolute left-[-9999px] top-0" ref={tableRef}>
+        <div className="absolute left-[-9999px] top-0" ref={tableRef} key={`pdf-export-${punchUpdateVersion}`}>
           <VisualizationPanel
-            platformData={platformData}
             profileData={profileData}
             ncGenerator={ncGenerator}
+            onPunchesUpdate={handleManualPunchesUpdate}
+            onProfileDataUpdate={(updates) => {
+              setProfileData(prev => ({ ...prev, ...updates }));
+            }}
           />
           <div className="mt-4">
             <CuttingListTable
