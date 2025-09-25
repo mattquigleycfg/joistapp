@@ -48,7 +48,7 @@ export interface NCCalculations {
   holeEdgeDistance: number;
 }
 
-export type PunchStationType = 'BOLT HOLE' | 'DIMPLE' | 'WEB TAB' | 'M SERVICE HOLE' | 'SMALL SERVICE HOLE';
+export type PunchStationType = 'BOLT HOLE' | 'DIMPLE' | 'WEB TAB' | 'M SERVICE HOLE' | 'SMALL SERVICE HOLE' | 'SERVICE' | 'CORNER BRACKETS';
 
 export interface PunchStationSettings {
   station: PunchStationType;

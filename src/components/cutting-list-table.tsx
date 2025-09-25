@@ -140,9 +140,11 @@ export const CuttingListTable: React.FC<CuttingListTableProps> = ({
                 className="w-3 h-3 rounded-sm"
                 style={{ backgroundColor: COLOR_MAP['STUB POSITION'] }}
               />
-              STUB POSITION
+              {partCode?.startsWith('B') ? 'SERVICE STUBS' : 'CORNER BRACKETS'}
             </TableCell>
-            <TableCell>Stub Connection Point</TableCell>
+            <TableCell>
+              {partCode?.startsWith('B') ? 'Service Connection Points' : 'Corner Bracket Positions'}
+            </TableCell>
             <TableCell>{stubSummary.summary}</TableCell>
           </TableRow>
         )}

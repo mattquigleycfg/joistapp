@@ -36,7 +36,7 @@ import {
 import { cn } from '@/lib/utils';
 import { NCFileGenerator } from '@/lib/nc-generator';
 
-export type PunchType = 'BOLT HOLE' | 'DIMPLE' | 'WEB TAB' | 'M SERVICE HOLE' | 'SMALL SERVICE HOLE' | 'SERVICE';
+export type PunchType = 'BOLT HOLE' | 'DIMPLE' | 'WEB TAB' | 'M SERVICE HOLE' | 'SMALL SERVICE HOLE' | 'SERVICE' | 'CORNER BRACKETS';
 
 export interface Punch {
   id: string;
@@ -62,6 +62,7 @@ const punchColors: Record<PunchType, string> = {
   'M SERVICE HOLE': 'bg-blue-500',
   'SMALL SERVICE HOLE': 'bg-cyan-500',
   'SERVICE': 'bg-purple-500',
+  'CORNER BRACKETS': 'bg-orange-500',
 };
 
 const punchBadgeColors: Record<PunchType, string> = {
@@ -71,6 +72,7 @@ const punchBadgeColors: Record<PunchType, string> = {
   'M SERVICE HOLE': 'bg-blue-100 text-blue-800 border-blue-300',
   'SMALL SERVICE HOLE': 'bg-cyan-100 text-cyan-800 border-cyan-300',
   'SERVICE': 'bg-purple-100 text-purple-800 border-purple-300',
+  'CORNER BRACKETS': 'bg-orange-100 text-orange-800 border-orange-300',
 };
 
 export function PunchEditorTable({ 
@@ -100,6 +102,7 @@ export function PunchEditorTable({
     'M SERVICE HOLE': true,
     'SMALL SERVICE HOLE': true,
     'SERVICE': true,
+    'CORNER BRACKETS': true,
   });
 
   // Sync station enabled state with Profile Settings
@@ -112,6 +115,7 @@ export function PunchEditorTable({
         'M SERVICE HOLE': true,
         'SMALL SERVICE HOLE': true,
         'SERVICE': true,
+        'CORNER BRACKETS': true,
       };
       
       punchStations.forEach((ps) => {
@@ -158,7 +162,13 @@ export function PunchEditorTable({
     collectPunches(calcs.dimples, 'DIMPLE');
     collectPunches(calcs.webHoles, 'WEB TAB');
     collectPunches(calcs.serviceHoles, calcs.serviceHoles[0]?.type === 'SMALL SERVICE HOLE' ? 'SMALL SERVICE HOLE' : 'M SERVICE HOLE');
-    collectPunches(calcs.stubs, 'SERVICE');
+    
+    // Separate corner brackets from service stubs
+    const cornerBrackets = calcs.stubs.filter(s => s.position === 131 || s.position === (profileLength - 131));
+    const serviceStubs = calcs.stubs.filter(s => s.position !== 131 && s.position !== (profileLength - 131));
+    
+    collectPunches(cornerBrackets, 'CORNER BRACKETS');
+    collectPunches(serviceStubs, 'SERVICE');
     
     setPunches(allPunches);
     setHistory([allPunches]);
@@ -366,6 +376,31 @@ export function PunchEditorTable({
 
   const isBearer = profileType === 'Bearer Single' || profileType === 'Bearer Box';
 
+  // Define display order based on requirements
+  const stationDisplayOrder: PunchType[] = [
+    'WEB TAB',
+    'BOLT HOLE',
+    'CORNER BRACKETS',
+    'SERVICE',
+    'M SERVICE HOLE',
+    'SMALL SERVICE HOLE',
+    'DIMPLE'
+  ];
+
+  // Get dynamic display name for stations based on profile type
+  const getStationDisplayName = (stationType: PunchType): string => {
+    if (stationType === 'WEB TAB') {
+      if (isBearer) {
+        return 'WEB TAB JOISTS';
+      } else {
+        return 'WEB TAB LATERAL BRACE';
+      }
+    } else if (stationType === 'SERVICE') {
+      return 'SERVICE STUBS';
+    }
+    return stationType;
+  };
+
   return (
     <Card className="card-system grid-m-3">
       <CardHeader className="grid-p-3">
@@ -379,7 +414,7 @@ export function PunchEditorTable({
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsSelecting(!isSelecting)}
-                className={cn("h-8 w-8 p-0", isSelecting && "bg-white shadow-sm")}
+                className={cn("h-8 w-8 p-0 bg-white shadow-sm hover:shadow-md transition-shadow", isSelecting && "bg-blue-50 shadow-md")}
                 title="Select tool"
               >
                 <MousePointer className="h-4 w-4" />
@@ -390,7 +425,7 @@ export function PunchEditorTable({
                 size="sm"
                 onClick={handleUndo}
                 disabled={historyIndex <= 0}
-                className="h-8 w-8 p-0"
+                className="h-8 w-8 p-0 bg-white shadow-sm hover:shadow-md transition-shadow disabled:bg-gray-100 disabled:shadow-none"
                 title="Undo"
               >
                 <Undo2 className="h-4 w-4" />
@@ -400,7 +435,7 @@ export function PunchEditorTable({
                 size="sm"
                 onClick={handleRedo}
                 disabled={historyIndex >= history.length - 1}
-                className="h-8 w-8 p-0"
+                className="h-8 w-8 p-0 bg-white shadow-sm hover:shadow-md transition-shadow disabled:bg-gray-100 disabled:shadow-none"
                 title="Redo"
               >
                 <Redo2 className="h-4 w-4" />
@@ -410,7 +445,7 @@ export function PunchEditorTable({
                 variant="ghost"
                 size="sm"
                 onClick={handleReset}
-                className="h-8 w-8 p-0"
+                className="h-8 w-8 p-0 bg-white shadow-sm hover:shadow-md transition-shadow"
                 title="Reset to calculated"
               >
                 <RotateCcw className="h-4 w-4" />
@@ -441,18 +476,19 @@ export function PunchEditorTable({
           <Table>
             <TableHeader className="sticky top-0 bg-white z-10">
               <TableRow>
-                {isSelecting && <TableHead className="w-12 text-body"></TableHead>}
-                <TableHead className="w-12 text-body"></TableHead>
-                <TableHead className="text-body">Position (mm)</TableHead>
-                <TableHead className="text-body">Type</TableHead>
-                <TableHead className="w-32 text-body">Actions</TableHead>
+                {isSelecting && <TableHead className="w-12 text-body text-left"></TableHead>}
+                <TableHead className="w-12 text-body text-left"></TableHead>
+                <TableHead className="text-body text-left">Position (mm)</TableHead>
+                <TableHead className="text-body text-left">Type</TableHead>
+                <TableHead className="w-32 text-body text-left">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(Object.keys(stationEnabled) as PunchType[]).map((type) => {
+              {stationDisplayOrder.map((type) => {
                 const typePunches = groupedPunches[type] || [];
                 const isCollapsed = collapsedStations.has(type);
                 const isEnabled = stationEnabled[type];
+                const displayName = getStationDisplayName(type);
                 
                 return (
                 <React.Fragment key={type}>
@@ -461,29 +497,29 @@ export function PunchEditorTable({
                     "hover:bg-gray-50",
                     !isEnabled && "bg-gray-50 opacity-60"
                   )}>
-                    <TableCell colSpan={isSelecting ? 5 : 4} className="font-semibold py-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0"
-                            onClick={() => {
-                              if (isCollapsed) {
-                                setCollapsedStations(prev => {
-                                  const newSet = new Set(prev);
-                                  newSet.delete(type);
-                                  return newSet;
-                                });
-                              } else {
-                                setCollapsedStations(prev => new Set([...prev, type]));
-                              }
-                            }}
-                          >
-                            {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                          </Button>
+                    <TableCell colSpan={isSelecting ? 5 : 4} className="font-semibold py-2 text-left">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 bg-white shadow-sm hover:shadow-md transition-shadow"
+                              onClick={() => {
+                                if (isCollapsed) {
+                                  setCollapsedStations(prev => {
+                                    const newSet = new Set(prev);
+                                    newSet.delete(type);
+                                    return newSet;
+                                  });
+                                } else {
+                                  setCollapsedStations(prev => new Set([...prev, type]));
+                                }
+                              }}
+                            >
+                              {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                            </Button>
                           <div className={cn("w-3 h-3 rounded-full", punchColors[type])} />
-                          <span className={cn(!isEnabled && "text-gray-500")}>{type}</span>
+                          <span className={cn("text-body", !isEnabled && "text-gray-500")}>{displayName}</span>
                           {typePunches.length > 0 && (
                             <Badge variant="secondary" className="ml-2">
                               {typePunches.length}
@@ -495,7 +531,7 @@ export function PunchEditorTable({
                             size="sm"
                             variant="outline"
                             onClick={() => handleAddStationPunch(type)}
-                            className="h-7 px-2"
+                            className="h-7 px-2 bg-white shadow-sm hover:shadow-md transition-shadow"
                           >
                             <Plus className="h-3 w-3 mr-1" />
                             Add
@@ -520,7 +556,7 @@ export function PunchEditorTable({
                       )}
                     >
                       {isSelecting && (
-                        <TableCell>
+                        <TableCell className="text-left">
                           <input
                             type="checkbox"
                             checked={selectedPunches.has(punch.id)}
@@ -529,10 +565,10 @@ export function PunchEditorTable({
                           />
                         </TableCell>
                       )}
-                      <TableCell>
+                      <TableCell className="text-left">
                         <div className={cn("w-2 h-2 rounded-full", punchColors[punch.type])} />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-left">
                         {editingId === punch.id ? (
                           <div className="flex items-center space-x-1">
                             <Input
@@ -546,7 +582,7 @@ export function PunchEditorTable({
                               size="sm"
                               variant="ghost"
                               onClick={() => handleSaveEdit(punch.id)}
-                              className="h-7 w-7 p-0"
+                              className="h-7 w-7 p-0 bg-white shadow-sm hover:shadow-md transition-shadow"
                             >
                               <Check className="h-3 w-3" />
                             </Button>
@@ -554,7 +590,7 @@ export function PunchEditorTable({
                               size="sm"
                               variant="ghost"
                               onClick={() => setEditingId(null)}
-                              className="h-7 w-7 p-0"
+                              className="h-7 w-7 p-0 bg-white shadow-sm hover:shadow-md transition-shadow"
                             >
                               <X className="h-3 w-3" />
                             </Button>
@@ -562,24 +598,24 @@ export function PunchEditorTable({
                         ) : (
                           <button
                             onClick={() => handleEdit(punch.id, punch.position)}
-                            className="text-numbers hover:text-blue-600 transition-colors"
+                            className="w-24 h-7 text-sm px-3 py-1 bg-white border border-input rounded-md text-numbers hover:text-blue-600 hover:border-blue-500 transition-colors text-left"
                           >
                             {punch.position.toFixed(1)}
                           </button>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-left">
                         <Badge className={cn("text-xs", punchBadgeColors[punch.type])}>
                           {punch.type}
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-left">
                         <div className="flex items-center gap-2">
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDuplicate(punch)}
-                            className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="h-7 w-7 p-0 bg-white shadow-sm hover:shadow-md transition-all opacity-0 group-hover:opacity-100"
                             title="Duplicate punch"
                           >
                             <Plus className="h-3 w-3 text-blue-500" />
@@ -588,7 +624,7 @@ export function PunchEditorTable({
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDelete(punch.id)}
-                            className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="h-7 w-7 p-0 bg-white shadow-sm hover:shadow-md transition-all opacity-0 group-hover:opacity-100"
                             title="Delete punch"
                           >
                             <Trash2 className="h-3 w-3 text-red-500" />

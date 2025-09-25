@@ -58,8 +58,10 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
       positions.push(currentPosition);
     }
     
-    // Add the last stub position
-    positions.push(lastStub);
+    // Add the last stub position if it's not already there (avoid duplicates)
+    if (positions[positions.length - 1] !== lastStub) {
+      positions.push(lastStub);
+    }
     
     return positions;
   }, []);

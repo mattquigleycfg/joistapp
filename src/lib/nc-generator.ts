@@ -65,6 +65,8 @@ export class NCFileGenerator {
           this.calculations.dimples.push(punchData);
           break;
         case 'SERVICE':
+        case 'CORNER BRACKETS':
+          // Both SERVICE and CORNER BRACKETS go to stubs array  
           this.calculations.stubs.push(punchData);
           break;
       }
@@ -314,22 +316,23 @@ export class NCFileGenerator {
       });
     }
 
-    // Stubs using explicit positions (stub punch coded as SERVICE) - only if stubsEnabled is true
-    if (stubsEnabled && stubPositions && stubPositions.length) {
-      stubPositions.forEach((pos) => {
-        if (pos > 0 && pos < length - 400) {
-          this.calculations.stubs.push({ position: pos, active: true, type: 'SERVICE' });
-        }
-      });
-    }
-    // Corner and first/last stub column brackets - only if stubsEnabled is true
-    if (stubsEnabled) {
-    const bracketPositions = [131, length - 131, 331, length - 331];
-    bracketPositions.forEach((pos) => {
-      if (pos > 0 && pos < length) {
-        this.calculations.stubs.push({ position: pos, active: true, type: 'SERVICE' });
+    // Check if SERVICE is enabled in punch stations  
+    const isServiceEnabled = !punchStations || punchStations.some(ps => ps.station === 'SERVICE' && ps.enabled);
+    
+    if (isServiceEnabled && stubsEnabled) {
+      // Corner brackets - always at 131mm from ends for bearers
+      this.calculations.stubs.push({ position: 131, active: true, type: 'SERVICE' });
+      this.calculations.stubs.push({ position: length - 131, active: true, type: 'SERVICE' });
+      
+      // Service stubs - using calculated positions from stubPositions
+      if (stubPositions && stubPositions.length) {
+        stubPositions.forEach((pos) => {
+          // Add all stub positions (they should include 331, length-331, and intermediate positions)
+          if (pos > 0 && pos < length) {
+            this.calculations.stubs.push({ position: pos, active: true, type: 'SERVICE' });
+          }
+        });
       }
-    });
     }
   }
 
@@ -354,8 +357,11 @@ export class NCFileGenerator {
     // Generate coordinated holes to prevent clashes
     this.generateCoordinatedJoistHoles(length, holeType, punchStations);
 
-    // End/Box Joist bracket SERVICE punches
-    if (endBox) {
+    // Check if SERVICE is enabled (for joists, this means corner brackets)
+    const isServiceEnabled = !punchStations || punchStations.some(ps => ps.station === 'SERVICE' && ps.enabled);
+    
+    // End/Box Joist corner bracket punches
+    if (endBox && isServiceEnabled) {
       this.calculations.stubs.push({ position: 131, active: true, type: 'SERVICE' });
       this.calculations.stubs.push({ position: length - 131, active: true, type: 'SERVICE' });
     }

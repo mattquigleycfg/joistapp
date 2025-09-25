@@ -63,6 +63,7 @@ export function SpanPlusApp() {
     length: 5200,
     joistSpacing: 600,
     stubSpacing: 1200,
+    stubPositions: [331, 1531, 2731, 3931, 4869], // Initial stub positions for 5200mm length
     stubsEnabled: true,
     holeType: 'No Holes',
     holeSpacing: 650,
@@ -71,6 +72,8 @@ export function SpanPlusApp() {
       { station: 'DIMPLE', enabled: true },
       { station: 'WEB TAB', enabled: true },
       { station: 'M SERVICE HOLE', enabled: true },
+      { station: 'SERVICE', enabled: true },
+      { station: 'CORNER BRACKETS', enabled: true },
     ],
     endBoxJoist: false,
   });
@@ -83,6 +86,7 @@ export function SpanPlusApp() {
       length: 5200,
       joistSpacing: 600,
       stubSpacing: 1200,
+      stubPositions: [331, 1531, 2731, 3931, 4869],
       stubsEnabled: true,
       holeType: 'No Holes',
       holeSpacing: 650,
@@ -91,6 +95,8 @@ export function SpanPlusApp() {
         { station: 'DIMPLE', enabled: true },
         { station: 'WEB TAB', enabled: true },
         { station: 'M SERVICE HOLE', enabled: true },
+        { station: 'SERVICE', enabled: true },
+        { station: 'CORNER BRACKETS', enabled: true },
       ],
       endBoxJoist: false,
     })
@@ -232,14 +238,14 @@ export function SpanPlusApp() {
           {/* Left Panel - Input Forms */}
           <div className="lg:col-span-1 space-y-6 sidebar-system">
             <Tabs defaultValue="profile" className="w-full">
-              <TabsList className="grid w-full grid-cols-3 h-auto">
-                <TabsTrigger value="profile" className="flex items-center justify-center p-3" title="Profile">
+              <TabsList className="grid w-full grid-cols-3 h-auto bg-gray-100 p-1">
+                <TabsTrigger value="profile" className="flex items-center justify-center p-3 bg-white shadow-sm hover:shadow-md transition-shadow data-[state=active]:bg-white data-[state=active]:shadow-md" title="Profile">
                   <Eye className="h-5 w-5" />
                 </TabsTrigger>
-                <TabsTrigger value="export" className="flex items-center justify-center p-3" title="Export">
+                <TabsTrigger value="export" className="flex items-center justify-center p-3 bg-white shadow-sm hover:shadow-md transition-shadow data-[state=active]:bg-white data-[state=active]:shadow-md" title="Export">
                   <Download className="h-5 w-5" />
                 </TabsTrigger>
-                <TabsTrigger value="cutting" className="flex items-center justify-center p-3" title="Cutting List">
+                <TabsTrigger value="cutting" className="flex items-center justify-center p-3 bg-white shadow-sm hover:shadow-md transition-shadow data-[state=active]:bg-white data-[state=active]:shadow-md" title="Cutting List">
                   <List className="h-5 w-5" />
                 </TabsTrigger>
               </TabsList>

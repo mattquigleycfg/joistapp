@@ -490,13 +490,15 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
             <span className="text-body">Service Holes ({profileData.holeType})</span>
           </div>
           
-          {/* Stub positions legend */}
+          {/* Service/Corner Brackets legend */}
           <div className="flex items-center space-x-2">
             <div className="flex space-x-1">
               <div className="w-2 h-2 rounded-full bg-purple-500 border border-purple-600"></div>
               <div className="w-2 h-2 rounded-full bg-purple-500 border border-purple-600"></div>
             </div>
-            <span className="text-body">Stub Positions</span>
+            <span className="text-body">
+              {profileData.profileType?.includes('Bearer') ? 'Service Stubs & Corner Brackets' : 'Corner Brackets'}
+            </span>
           </div>
           
           {/* Dimples legend (only for joists) */}
