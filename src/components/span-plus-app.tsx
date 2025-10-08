@@ -424,6 +424,7 @@ export function SpanPlusApp() {
                   onProfileDataUpdate={(updates) => {
                     setProfileData(prev => ({ ...prev, ...updates }));
                   }}
+                  updateVersion={punchUpdateVersion}
                 />
               </CardContent>
             </Card>
@@ -439,6 +440,7 @@ export function SpanPlusApp() {
             onProfileDataUpdate={(updates) => {
               setProfileData(prev => ({ ...prev, ...updates }));
             }}
+            updateVersion={punchUpdateVersion}
           />
           <div className="mt-4">
             <CuttingListTable

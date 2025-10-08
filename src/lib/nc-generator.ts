@@ -717,42 +717,43 @@ export class NCFileGenerator {
       (ps.station === 'M SERVICE HOLE' || ps.station === 'SMALL SERVICE HOLE') && ps.enabled
     );
     
-    // If web tabs are disabled, don't generate them
-    if (!isWebTabEnabled) return;
-    
-    // Define spacing requirements
-    const serviceHoleSpacing = this.calculations.openingCentres; // 650mm
-    const webTabSpacing = joistSpacing; // Use joist spacing for web tabs
-    const maxWebTabSpacing = 2400; // Maximum 2400mm spacing for web tabs
-    
-    console.log('Bearer web tab generation:', { joistSpacing, webTabSpacing, maxWebTabSpacing, holeType });
+    console.log('Bearer generation:', { length, joistSpacing, holeType, isWebTabEnabled, isServiceHoleEnabled });
     
     // Generate service holes first (if enabled and not "No Holes")
     if (holeType !== 'No Holes' && isServiceHoleEnabled) {
-      this.generateServiceHolesWithWebTabs(
-        serviceHoleSpacing, 
-        length - serviceHoleSpacing, 
-        serviceHoleSpacing,
-        webTabSpacing, // Use joist spacing as minimum
-        maxWebTabSpacing,
-        punchStations
-      );
-    } else if (isWebTabEnabled) {
-      // No service holes, generate web tabs with joist spacing (if enabled)
-      // For bearers: Web tabs mark joist connection points, spaced at joistSpacing intervals
-      const startOffset = webTabSpacing; // Start at first joist position
-      const endOffset = length - webTabSpacing; // End at last joist position
+      const serviceHoleSpacing = this.calculations.openingCentres; // 650mm
+      const availableLength = length - (2 * serviceHoleSpacing);
       
-      console.log('Generating bearer web tabs:', { startOffset, endOffset, webTabSpacing });
+      // Calculate how many service holes we can fit
+      const maxServiceHoles = Math.floor(availableLength / serviceHoleSpacing);
+      
+      if (maxServiceHoles >= 1) {
+        // Generate service holes symmetrically
+        const totalServiceSpan = (maxServiceHoles - 1) * serviceHoleSpacing;
+        const serviceStart = serviceHoleSpacing + (availableLength - totalServiceSpan) / 2;
+        
+        for (let i = 0; i < maxServiceHoles; i++) {
+          const position = serviceStart + (i * serviceHoleSpacing);
+          this.calculations.serviceHoles.push({ position: roundHalf(position), active: true, type: 'M SERVICE HOLE' });
+        }
+      }
+    }
+    
+    // Generate web tabs at exact joist spacing intervals (if enabled)
+    if (isWebTabEnabled) {
+      const startOffset = joistSpacing; // Start at first joist position
+      const endOffset = length - joistSpacing; // End at last joist position
+      
+      console.log('Generating bearer web tabs:', { startOffset, endOffset, joistSpacing });
       
       // Calculate how many web tabs fit with the given spacing
-      const numWebTabs = Math.floor((endOffset - startOffset) / webTabSpacing) + 1;
+      const numWebTabs = Math.floor((endOffset - startOffset) / joistSpacing) + 1;
       
       console.log('Number of web tabs:', numWebTabs);
       
       // Generate web tabs at exact joist spacing intervals
       for (let i = 0; i < numWebTabs; i++) {
-        const position = startOffset + (i * webTabSpacing);
+        const position = startOffset + (i * joistSpacing);
         if (position <= endOffset) {
           this.calculations.webHoles.push({ position: roundHalf(position), active: true, type: 'WEB TAB' });
           console.log(`Added bearer web tab at ${roundHalf(position)}`);

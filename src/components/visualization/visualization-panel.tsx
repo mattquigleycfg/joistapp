@@ -15,9 +15,10 @@ interface VisualizationPanelProps {
   ncGenerator: NCFileGenerator | null;
   onPunchesUpdate?: (punches: any[] | null) => void;
   onProfileDataUpdate?: (data: Partial<ProfileData>) => void;
+  updateVersion?: number;
 }
 
-export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, onProfileDataUpdate }: VisualizationPanelProps) {
+export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, onProfileDataUpdate, updateVersion }: VisualizationPanelProps) {
   const [manualPunches, setManualPunches] = useState<Punch[] | null>(null);
   
   // Handle punch updates from the editor table
@@ -434,12 +435,13 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
       
       {/* Punch Editor Table */}
       <PunchEditorTable
-        key={`${profileData.profileType}-${profileData.length}-${profileData.holeType}`}
+        key={`${profileData.profileType}-${profileData.holeType}`}
         ncGenerator={ncGenerator}
         onPunchesUpdate={handlePunchesUpdate}
         profileLength={profileData.length}
         profileType={profileData.profileType}
         punchStations={profileData.punchStations}
+        updateVersion={updateVersion}
         onPunchStationsUpdate={(stations) => {
           // Update profile data with new station states
           if (onProfileDataUpdate) {

@@ -52,6 +52,7 @@ interface PunchEditorTableProps {
   profileType?: string;
   punchStations?: any[];
   onPunchStationsUpdate?: (stations: any[]) => void;
+  updateVersion?: number;
 }
 
 // Color mapping for punch types
@@ -81,7 +82,8 @@ export function PunchEditorTable({
   profileLength, 
   profileType,
   punchStations,
-  onPunchStationsUpdate 
+  onPunchStationsUpdate,
+  updateVersion 
 }: PunchEditorTableProps) {
   const [punches, setPunches] = useState<Punch[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -176,7 +178,7 @@ export function PunchEditorTable({
     // Reset other state when profile changes
     setSelectedPunches(new Set());
     setEditingId(null);
-  }, [ncGenerator, profileLength]);
+  }, [ncGenerator, updateVersion, profileLength]);
 
   // Group punches by type
   const groupedPunches = punches.reduce((acc, punch) => {
