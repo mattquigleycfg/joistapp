@@ -38,16 +38,16 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
 
     const calculations = ncGenerator.getCalculations();
     
-    // SVG dimensions – reduced height to show table above fold
-    const svgWidth = 1200;
-    const svgHeight = 400;
+    // SVG dimensions – increased for better visibility
+    const svgWidth = 1400;
+    const svgHeight = 600;
     
     // Use a consistent scale that maintains proper proportions
     // Ensure 150px padding from edges
-    // Reduced max scale for smaller viewport
+    // Increased max scale for better profile visibility
     const maxWidthScale = (svgWidth - 300) / profileData.length; // 150px padding on each side
     const maxHeightScale = (svgHeight - 300) / profileData.profileHeight; // 150px padding top/bottom
-    const baseScale = Math.min(maxWidthScale, maxHeightScale, 0.12);
+    const baseScale = Math.min(maxWidthScale, maxHeightScale, 0.20);
     
     // Scaled dimensions - use same scale for both length and height to maintain proportions
     const profileLength = profileData.length * baseScale;
@@ -334,9 +334,9 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
         {/* Length dimension */}
         <line
           x1={offsetX}
-          y1={offsetY + profileHeight + flangeHeight + 20}
+          y1={offsetY + profileHeight + flangeHeight + 30}
           x2={offsetX + profileLength}
-          y2={offsetY + profileHeight + flangeHeight + 20}
+          y2={offsetY + profileHeight + flangeHeight + 30}
           stroke="#374151"
           strokeWidth="1"
           markerEnd="url(#arrowhead)"
@@ -344,9 +344,9 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
         />
         <text
           x={offsetX + profileLength / 2}
-          y={offsetY + profileHeight + flangeHeight + 35}
+          y={offsetY + profileHeight + flangeHeight + 60}
           textAnchor="middle"
-          fontSize="12"
+          fontSize="24"
           fill="#4b5563"
           fontFamily="'Roboto Mono', monospace"
           fontWeight="500"
@@ -356,9 +356,9 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
         
         {/* Height dimension */}
         <line
-          x1={offsetX - 30}
+          x1={offsetX - 50}
           y1={offsetY}
-          x2={offsetX - 30}
+          x2={offsetX - 50}
           y2={offsetY + profileHeight}
           stroke="#374151"
           strokeWidth="1"
@@ -366,14 +366,14 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
           markerStart="url(#arrowhead)"
         />
         <text
-          x={offsetX - 40}
+          x={offsetX - 80}
           y={offsetY + profileHeight / 2}
           textAnchor="middle"
-          fontSize="12"
+          fontSize="24"
           fill="#4b5563"
           fontFamily="'Roboto Mono', monospace"
           fontWeight="500"
-          transform={`rotate(-90, ${offsetX - 40}, ${offsetY + profileHeight / 2})`}
+          transform={`rotate(-90, ${offsetX - 80}, ${offsetY + profileHeight / 2})`}
         >
           Height: {profileData.profileHeight}mm
         </text>
@@ -381,8 +381,8 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
         {/* Profile type and specifications */}
         <text
           x={offsetX}
-          y={offsetY - flangeHeight - 25}
-          fontSize="14"
+          y={offsetY - flangeHeight - 70}
+          fontSize="28"
           fontWeight="bold"
           fill="#4b5563"
           fontFamily="'Roboto Mono', monospace"
@@ -392,8 +392,8 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
         
         <text
           x={offsetX}
-          y={offsetY - flangeHeight - 10}
-          fontSize="11"
+          y={offsetY - flangeHeight - 35}
+          fontSize="22"
           fill="#4b5563"
           fontFamily="'Roboto Mono', monospace"
         >
@@ -406,7 +406,7 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
           x={svgWidth - 10}
           y={svgHeight - 10}
           textAnchor="end"
-          fontSize="10"
+          fontSize="20"
           fill="#6b7280"
           fontFamily="'Roboto Mono', monospace"
         >
