@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { ProfileData, PunchStationType } from '@/types/form-types';
-import { Switch } from '@/components/ui/switch';
 
 const profileSchema = z.object({
   profileType: z.enum(['Joist Single', 'Bearer Single', 'Joist Box', 'Bearer Box']),
@@ -218,56 +217,6 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
           )}
         />
 
-
-        <FormField
-          control={form.control}
-          name="stubSpacing"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Stub Spacing (mm)</FormLabel>
-              <FormControl>
-                <Input 
-                  type="number" 
-                  {...field} 
-                  onChange={e => field.onChange(Number(e.target.value))}
-                  className="text-right"
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Stub positions (only visible for Bearer) */}
-        {(form.watch('profileType') === 'Bearer Single' || form.watch('profileType') === 'Bearer Box') && (
-          <FormField
-            control={form.control}
-            name="stubPositions"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Stub Positions (mm, comma separated)</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="Auto-calculated based on spacing - editable"
-                    value={field.value?.join(', ') || ''}
-                    onChange={(e) => {
-                      const nums = e.target.value
-                        .split(',')
-                        .map((v) => parseFloat(v.trim()))
-                        .filter((n) => !isNaN(n));
-                      field.onChange(nums);
-                    }}
-                  />
-                </FormControl>
-                <div className="text-xs text-gray-500 mt-1">
-                  First stub at 331mm, last stub at {(form.watch('length') || 0) - 331}mm
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-
         <Separator />
 
         <FormField
@@ -313,67 +262,6 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
             </FormItem>
           )}
         />
-
-
-        {/* Punch Station Selection */}
-        <div className="space-y-4">
-          <FormLabel className="text-base font-medium">Punch Stations</FormLabel>
-          
-          {/* Stubs On/Off toggle */}
-          <div className="grid grid-cols-1 gap-3 rounded-lg border p-3 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5 flex-1 pr-4">
-                <span className="text-sm font-medium">Stubs On/Off</span>
-                <p className="text-xs text-muted-foreground">
-                  Enable or disable stub positions in visualization and exports
-                </p>
-              </div>
-              <div className="flex-shrink-0">
-                <Switch
-                  checked={form.watch('stubsEnabled') || false}
-                  onCheckedChange={(value) => form.setValue('stubsEnabled', !!value)}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Individual Punch Station Switches */}
-          {(['BOLT HOLE','DIMPLE','WEB TAB','M SERVICE HOLE','SMALL SERVICE HOLE'] as PunchStationType[]).map((station) => {
-            const index = form.getValues('punchStations').findIndex(ps => ps.station === station);
-            const checked = index !== -1 ? form.getValues('punchStations')[index].enabled : false;
-            return (
-              <div key={station} className="grid grid-cols-1 gap-3 rounded-lg border p-3 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5 flex-1 pr-4">
-                    <span className="text-sm font-medium">{station}</span>
-                    <p className="text-xs text-muted-foreground">
-                      {station === 'BOLT HOLE' && 'Flange bolt holes for structural connections'}
-                      {station === 'DIMPLE' && 'Flange stitch dimples for reinforcement'}
-                      {station === 'WEB TAB' && 'Web connection tabs for joist connections'}
-                      {station === 'M SERVICE HOLE' && 'Main service holes for utilities'}
-                      {station === 'SMALL SERVICE HOLE' && 'Small service holes for utilities'}
-                    </p>
-                  </div>
-                  <div className="flex-shrink-0">
-                    <Switch
-                      checked={checked}
-                      onCheckedChange={(value) => {
-                        const current = form.getValues('punchStations');
-                        const existingIndex = current.findIndex(ps => ps.station === station);
-                        if (existingIndex !== -1) {
-                          current[existingIndex].enabled = !!value;
-                        } else {
-                          current.push({ station, enabled: !!value });
-                        }
-                        form.setValue('punchStations', current as any);
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
       </form>
     </Form>
   );

@@ -319,7 +319,7 @@ export class NCFileGenerator {
     // Check if SERVICE is enabled in punch stations  
     const isServiceEnabled = !punchStations || punchStations.some(ps => ps.station === 'SERVICE' && ps.enabled);
     
-    if (isServiceEnabled && stubsEnabled) {
+    if (isServiceEnabled) {
       // Corner brackets - always at 131mm from ends for bearers
       this.calculations.stubs.push({ position: 131, active: true, type: 'SERVICE' });
       this.calculations.stubs.push({ position: length - 131, active: true, type: 'SERVICE' });
@@ -374,8 +374,13 @@ export class NCFileGenerator {
       (ps.station === 'M SERVICE HOLE' || ps.station === 'SMALL SERVICE HOLE') && ps.enabled
     );
     
+    console.log('generateCoordinatedJoistHoles:', { length, holeType, isWebTabEnabled, isServiceHoleEnabled, punchStations });
+    
     // If web tabs are disabled, don't generate them
-    if (!isWebTabEnabled) return;
+    if (!isWebTabEnabled) {
+      console.log('Web tabs disabled, returning');
+      return;
+    }
     
     // Calculate available length (excluding end exclusions)
     const availableLength = length - this.calculations.endExclusion;
@@ -388,6 +393,7 @@ export class NCFileGenerator {
     
     // Generate service holes first (if enabled and not "No Holes")
     if (holeType !== 'No Holes' && isServiceHoleEnabled) {
+      console.log('Generating service holes with web tabs');
       this.generateServiceHolesWithWebTabs(
         startOffset, 
         startOffset + availableLength, 
@@ -398,12 +404,16 @@ export class NCFileGenerator {
       );
     } else if (isWebTabEnabled) {
       // No service holes, generate web tabs with minimum spacing (if enabled)
+      console.log('Generating web tabs only');
       this.generateWebTabsOnly(
         startOffset,
         startOffset + availableLength,
-        minWebTabSpacing
+        minWebTabSpacing,
+        maxWebTabSpacing
       );
     }
+    
+    console.log('Web holes generated:', this.calculations.webHoles);
     
   }
 
@@ -443,39 +453,78 @@ export class NCFileGenerator {
   }
 
   private generateWebTabsBetweenServiceHoles(servicePositions: number[], minWebTabSpacing: number, maxWebTabSpacing: number) {
-    if (servicePositions.length < 2) {
-      // If only one service hole, place web tab at center
-      const centerPos = servicePositions[0];
-      this.calculations.webHoles.push({ position: roundHalf(centerPos), active: true, type: 'WEB TAB' });
+    console.log('generateWebTabsBetweenServiceHoles called:', { servicePositions, minWebTabSpacing, maxWebTabSpacing });
+    
+    if (servicePositions.length === 0) {
+      console.log('No service positions, returning');
       return;
     }
     
-    // Place web tabs between service holes only if gap meets minimum spacing
-    for (let i = 0; i < servicePositions.length - 1; i++) {
-      const servicePos1 = servicePositions[i];
-      const servicePos2 = servicePositions[i + 1];
-      const gap = servicePos2 - servicePos1;
-      
-      // Only place web tab if gap meets minimum spacing requirement
-      if (gap >= minWebTabSpacing) {
-        const webTabPos = servicePos1 + (gap / 2);
-        this.calculations.webHoles.push({ position: roundHalf(webTabPos), active: true, type: 'WEB TAB' });
-      }
+    // For joists: Place web tabs (lateral bracing) at proper 1200-1800mm spacing
+    // Service holes: 200mm diameter, Web tabs: 40mm wide
+    // Minimum clearance: 120mm from service hole center (100mm radius + 20mm web tab half-width)
+    const startPos = servicePositions[0];
+    const endPos = servicePositions[servicePositions.length - 1];
+    const availableLength = endPos - startPos;
+    
+    const minClearance = 120; // 100mm service hole radius + 20mm web tab half-width
+    
+    console.log('Span calculation:', { startPos, endPos, availableLength });
+    
+    // If span is too small, don't add web tabs
+    if (availableLength < minWebTabSpacing) {
+      console.log('Available length too small, returning');
+      return;
     }
     
-    // Add center web tab if we have enough service holes and spacing allows
-    if (servicePositions.length >= 3) {
-      const centerIndex = Math.floor(servicePositions.length / 2);
-      const centerPos = servicePositions[centerIndex];
+    // Calculate optimal number of web tabs to stay within spacing constraints
+    const minWebTabs = Math.ceil(availableLength / maxWebTabSpacing);
+    const numWebTabs = Math.max(1, minWebTabs);
+    
+    console.log('Web tabs to generate:', { minWebTabs, numWebTabs });
+    
+    // Calculate actual spacing (will be between minSpacing and maxSpacing)
+    const actualSpacing = availableLength / (numWebTabs + 1);
+    
+    console.log('actualSpacing:', actualSpacing);
+    
+    // Generate web tabs, shifting them if they conflict with service holes
+    for (let i = 1; i <= numWebTabs; i++) {
+      const idealPosition = startPos + (i * actualSpacing);
       
-      // Check if center position has adequate spacing from adjacent service holes
-      const leftGap = centerIndex > 0 ? centerPos - servicePositions[centerIndex - 1] : Infinity;
-      const rightGap = centerIndex < servicePositions.length - 1 ? servicePositions[centerIndex + 1] - centerPos : Infinity;
+      // Check if this position conflicts with any service hole
+      const conflictingHole = servicePositions.find(servicePos => 
+        Math.abs(idealPosition - servicePos) < minClearance
+      );
       
-      if (leftGap >= minWebTabSpacing && rightGap >= minWebTabSpacing) {
-        this.calculations.webHoles.push({ position: roundHalf(centerPos), active: true, type: 'WEB TAB' });
+      let finalPosition = idealPosition;
+      
+      if (conflictingHole !== undefined) {
+        // Conflict detected - shift web tab to nearest safe position
+        // Try shifting to the right first (after the service hole)
+        const shiftedRight = conflictingHole + minClearance;
+        const shiftedLeft = conflictingHole - minClearance;
+        
+        // Choose the shift that's closest to the ideal position and within bounds
+        if (shiftedRight <= endPos && Math.abs(shiftedRight - idealPosition) <= Math.abs(shiftedLeft - idealPosition)) {
+          finalPosition = shiftedRight;
+          console.log(`Web tab ${i}: shifted from ${idealPosition} to ${shiftedRight} (right of service hole at ${conflictingHole})`);
+        } else if (shiftedLeft >= startPos) {
+          finalPosition = shiftedLeft;
+          console.log(`Web tab ${i}: shifted from ${idealPosition} to ${shiftedLeft} (left of service hole at ${conflictingHole})`);
+        } else {
+          console.log(`Web tab ${i}: cannot place safely, skipping`);
+          continue;
+        }
+      } else {
+        console.log(`Web tab ${i}: no conflict at position ${idealPosition}`);
       }
+      
+      this.calculations.webHoles.push({ position: roundHalf(finalPosition), active: true, type: 'WEB TAB' });
+      console.log(`Added web tab at ${roundHalf(finalPosition)}`);
     }
+    
+    console.log('Final webHoles count:', this.calculations.webHoles.length);
   }
 
   private generateJoistWebTabs(startPos: number, endPos: number, minSpacing: number, maxSpacing: number) {
@@ -557,18 +606,31 @@ export class NCFileGenerator {
     );
   }
 
-  private generateWebTabsOnly(startPos: number, endPos: number, maxSpacing: number) {
+  private generateWebTabsOnly(startPos: number, endPos: number, minSpacing: number, maxSpacing: number) {
     const availableLength = endPos - startPos;
-    const maxWebTabs = Math.floor(availableLength / maxSpacing);
     
-    if (maxWebTabs < 1) return;
+    console.log('generateWebTabsOnly:', { startPos, endPos, availableLength, minSpacing, maxSpacing });
     
-    // Generate web tabs symmetrically
-    const totalSpan = (maxWebTabs - 1) * maxSpacing;
-    const centerStart = startPos + (availableLength - totalSpan) / 2;
+    // Calculate optimal number of web tabs to stay within spacing constraints
+    const minWebTabs = Math.ceil(availableLength / maxSpacing);
+    const maxWebTabs = Math.floor(availableLength / minSpacing);
     
-    for (let i = 0; i < maxWebTabs; i++) {
-      const position = centerStart + (i * maxSpacing);
+    // Use the minimum number that satisfies max spacing constraint
+    const numWebTabs = Math.max(1, minWebTabs);
+    
+    console.log('Calculated web tabs:', { minWebTabs, maxWebTabs, numWebTabs });
+    
+    if (numWebTabs < 1) return;
+    
+    // Calculate actual spacing (will be between minSpacing and maxSpacing)
+    const actualSpacing = availableLength / (numWebTabs + 1);
+    
+    console.log('actualSpacing:', actualSpacing);
+    
+    // Generate web tabs symmetrically with calculated spacing
+    for (let i = 1; i <= numWebTabs; i++) {
+      const position = startPos + (i * actualSpacing);
+      console.log(`Adding web tab ${i} at position:`, position);
       this.calculations.webHoles.push({ position: roundHalf(position), active: true, type: 'WEB TAB' });
     }
   }
@@ -663,6 +725,8 @@ export class NCFileGenerator {
     const webTabSpacing = joistSpacing; // Use joist spacing for web tabs
     const maxWebTabSpacing = 2400; // Maximum 2400mm spacing for web tabs
     
+    console.log('Bearer web tab generation:', { joistSpacing, webTabSpacing, maxWebTabSpacing, holeType });
+    
     // Generate service holes first (if enabled and not "No Holes")
     if (holeType !== 'No Holes' && isServiceHoleEnabled) {
       this.generateServiceHolesWithWebTabs(
@@ -675,11 +739,25 @@ export class NCFileGenerator {
       );
     } else if (isWebTabEnabled) {
       // No service holes, generate web tabs with joist spacing (if enabled)
-      this.generateWebTabsOnly(
-        joistSpacing,
-        length - joistSpacing,
-        webTabSpacing
-      );
+      // For bearers: Web tabs mark joist connection points, spaced at joistSpacing intervals
+      const startOffset = webTabSpacing; // Start at first joist position
+      const endOffset = length - webTabSpacing; // End at last joist position
+      
+      console.log('Generating bearer web tabs:', { startOffset, endOffset, webTabSpacing });
+      
+      // Calculate how many web tabs fit with the given spacing
+      const numWebTabs = Math.floor((endOffset - startOffset) / webTabSpacing) + 1;
+      
+      console.log('Number of web tabs:', numWebTabs);
+      
+      // Generate web tabs at exact joist spacing intervals
+      for (let i = 0; i < numWebTabs; i++) {
+        const position = startOffset + (i * webTabSpacing);
+        if (position <= endOffset) {
+          this.calculations.webHoles.push({ position: roundHalf(position), active: true, type: 'WEB TAB' });
+          console.log(`Added bearer web tab at ${roundHalf(position)}`);
+        }
+      }
     }
   }
 
@@ -729,7 +807,9 @@ export class NCFileGenerator {
     let csvLine = `csvCOMPONENT,${componentCode},${this.partCode},${profileType},NORMAL,${this.quantity},${length},0,0,${length},0,50`;
 
     punches.forEach((p) => {
-      csvLine += `,${p.type},${roundHalf(p.position)}`;
+      // Map CORNER BRACKETS to SERVICE for NC export
+      const exportType = p.type === 'CORNER BRACKETS' ? 'SERVICE' : p.type;
+      csvLine += `,${exportType},${roundHalf(p.position)}`;
     });
 
     return csvLine;
