@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -7,6 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { ProfileData, PunchStationType } from '@/types/form-types';
+import { PunchStationConfig } from '@/types/manufacturing';
+import { MANUFACTURING_CONSTANTS } from '@/lib/constants';
+import { getSpanTableRecommendation, calculateStubPositions, isBearerProfile, isJoistProfile } from '@/lib/utils/manufacturing';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 
@@ -38,71 +41,17 @@ interface ProfileFormProps {
 }
 
 // kPa span table logic
-function getSpanTableRecommendation(length: number, kpaRating: '2.5' | '5.0'): { profileType: 'Joist Single' | 'Joist Box', joistSpacing: number, exceedsLimit: boolean } {
-  if (kpaRating === '2.5') {
-    // 2.5 kPa - Check Single C first
-    if (length <= 6800) return { profileType: 'Joist Single', joistSpacing: 600, exceedsLimit: false };
-    if (length <= 7600) return { profileType: 'Joist Single', joistSpacing: 500, exceedsLimit: false };
-    if (length <= 8600) return { profileType: 'Joist Single', joistSpacing: 400, exceedsLimit: false };
-    if (length <= 9550) return { profileType: 'Joist Single', joistSpacing: 300, exceedsLimit: false };
-    
-    // Beyond Single C limits - use Box Joist
-    if (length <= 9100) return { profileType: 'Joist Box', joistSpacing: 600, exceedsLimit: false };
-    if (length <= 9750) return { profileType: 'Joist Box', joistSpacing: 500, exceedsLimit: false };
-    if (length <= 10600) return { profileType: 'Joist Box', joistSpacing: 400, exceedsLimit: false };
-    if (length <= 11750) return { profileType: 'Joist Box', joistSpacing: 300, exceedsLimit: false };
-    
-    // Exceeds all limits
-    return { profileType: 'Joist Box', joistSpacing: 300, exceedsLimit: true };
-  } else {
-    // 5.0 kPa - Check Single C first
-    if (length <= 4500) return { profileType: 'Joist Single', joistSpacing: 600, exceedsLimit: false };
-    if (length <= 5100) return { profileType: 'Joist Single', joistSpacing: 500, exceedsLimit: false };
-    if (length <= 5850) return { profileType: 'Joist Single', joistSpacing: 400, exceedsLimit: false };
-    if (length <= 7000) return { profileType: 'Joist Single', joistSpacing: 300, exceedsLimit: false };
-    
-    // Beyond Single C limits - use Box Joist (length > 7000)
-    // Note: 7001-7700 range uses the next threshold
-    if (length <= 7700) return { profileType: 'Joist Box', joistSpacing: 500, exceedsLimit: false };
-    if (length <= 8350) return { profileType: 'Joist Box', joistSpacing: 400, exceedsLimit: false };
-    if (length <= 9300) return { profileType: 'Joist Box', joistSpacing: 300, exceedsLimit: false };
-    
-    // Exceeds all limits
-    return { profileType: 'Joist Box', joistSpacing: 300, exceedsLimit: true };
-  }
-}
+// Using shared utility function from manufacturing utils
 
-export function ProfileForm({ data, onChange }: ProfileFormProps) {
+export const ProfileForm = React.memo(function ProfileForm({ data, onChange }: ProfileFormProps) {
   const form = useForm<ProfileData>({
     resolver: zodResolver(profileSchema),
     values: data
   });
 
   // Function to calculate stub positions based on spacing and length
-  const calculateStubPositions = React.useCallback((length: number, spacing: number): number[] => {
-    if (length <= 662) return []; // Not enough length for first and last stubs
-
-    const firstStub = 331;
-    const lastStub = length - 331;
-    const availableLength = lastStub - firstStub;
-    
-    if (availableLength <= 0) return [firstStub];
-    
-    const positions = [firstStub];
-    
-    // Calculate intermediate positions based on spacing
-    let currentPosition = firstStub;
-    while (currentPosition + spacing < lastStub) {
-      currentPosition += spacing;
-      positions.push(currentPosition);
-    }
-    
-    // Add the last stub position if it's not already there (avoid duplicates)
-    if (positions[positions.length - 1] !== lastStub) {
-      positions.push(lastStub);
-    }
-    
-    return positions;
+  const calculateStubPositionsCallback = useCallback((length: number, spacing: number): number[] => {
+    return calculateStubPositions(length, spacing);
   }, []);
 
   // Auto-calculate stub positions when spacing or length changes (for Bearer only)
@@ -112,21 +61,21 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
       if ((value.profileType === 'Bearer Single' || value.profileType === 'Bearer Box') && 
           (name === 'stubSpacing' || name === 'length') && 
           value.stubSpacing && value.length) {
-        const newPositions = calculateStubPositions(value.length, value.stubSpacing);
+        const newPositions = calculateStubPositionsCallback(value.length, value.stubSpacing);
         form.setValue('stubPositions', newPositions, { shouldValidate: true });
       }
     });
     return () => subscription.unsubscribe();
-  }, [form, calculateStubPositions]);
+  }, [form, calculateStubPositionsCallback]);
 
   // Initial calculation of stub positions for Bearer
   React.useEffect(() => {
     if ((data.profileType === 'Bearer Single' || data.profileType === 'Bearer Box') && data.stubSpacing && data.length && 
         (!data.stubPositions || data.stubPositions.length === 0)) {
-      const initialPositions = calculateStubPositions(data.length, data.stubSpacing);
+      const initialPositions = calculateStubPositionsCallback(data.length, data.stubSpacing);
       form.setValue('stubPositions', initialPositions, { shouldValidate: true });
     }
-  }, [data.profileType, data.stubSpacing, data.length, data.stubPositions, form, calculateStubPositions]);
+  }, [data.profileType, data.stubSpacing, data.length, data.stubPositions, form, calculateStubPositionsCallback]);
 
   // Handle kPa rating and length changes for span table logic
   React.useEffect(() => {
@@ -192,8 +141,9 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
     return () => subscription.unsubscribe();
   }, [form, onChange]);
 
-  const isJoist = form.watch('profileType') === 'Joist Single' || form.watch('profileType') === 'Joist Box';
-  const isBearer = form.watch('profileType') === 'Bearer Single' || form.watch('profileType') === 'Bearer Box';
+  const profileType = form.watch('profileType');
+  const isJoist = useMemo(() => isJoistProfile(profileType), [profileType]);
+  const isBearer = useMemo(() => isBearerProfile(profileType), [profileType]);
 
   return (
     <Form {...form}>
@@ -228,7 +178,7 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
                     const length = form.getValues('length');
                     const spacing = form.getValues('stubSpacing');
                     if (length && spacing) {
-                      const newPositions = calculateStubPositions(length, spacing);
+                      const newPositions = calculateStubPositionsCallback(length, spacing);
                       form.setValue('stubPositions', newPositions, { shouldValidate: true });
                     }
                   }
@@ -236,7 +186,7 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
                 value={field.value}
               >
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger className="sidebar-select">
                     <SelectValue placeholder="Select profile type" />
                   </SelectTrigger>
                 </FormControl>
@@ -268,7 +218,7 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
                   type="number" 
                   {...field} 
                   onChange={e => field.onChange(Number(e.target.value))}
-                  className="text-right"
+                  className="sidebar-input"
                 />
               </FormControl>
               <FormMessage />
@@ -289,7 +239,7 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
                     type="number" 
                     value={field.value || ''}
                     onChange={e => field.onChange(Number(e.target.value))}
-                    className="text-right"
+                    className="sidebar-input"
                     placeholder="Enter joist span length"
                   />
                 </FormControl>
@@ -310,7 +260,7 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
               <FormLabel>Profile Height (mm)</FormLabel>
               <Select onValueChange={(value) => field.onChange(Number(value))} value={field.value?.toString()}>
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger className="sidebar-select">
                     <SelectValue placeholder="Select height" />
                   </SelectTrigger>
                 </FormControl>
@@ -335,7 +285,7 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
               <FormLabel>kPa Rating</FormLabel>
               <Select onValueChange={field.onChange} value={field.value || '2.5'}>
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger className="sidebar-select">
                     <SelectValue placeholder="Select kPa rating" />
                   </SelectTrigger>
                 </FormControl>
@@ -362,7 +312,7 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
                   type="number" 
                   {...field} 
                   onChange={e => field.onChange(Number(e.target.value))}
-                  className="text-right"
+                  className="sidebar-input"
                 />
               </FormControl>
               {isJoist && form.watch('kpaRating') && (
@@ -390,7 +340,7 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
               <FormLabel>Hole Type</FormLabel>
               <Select onValueChange={field.onChange} value={field.value}>
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger className="sidebar-select">
                     <SelectValue placeholder="Select hole type" />
                   </SelectTrigger>
                 </FormControl>
@@ -418,7 +368,7 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
                   type="number" 
                   {...field} 
                   onChange={e => field.onChange(Number(e.target.value))}
-                  className="text-right"
+                  className="sidebar-input"
                 />
               </FormControl>
               <FormMessage />
@@ -474,4 +424,4 @@ export function ProfileForm({ data, onChange }: ProfileFormProps) {
       </form>
     </Form>
   );
-}
+});

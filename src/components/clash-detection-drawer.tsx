@@ -26,9 +26,9 @@ export function ClashDetectionDrawer({ open, onOpenChange, clashResult }: ClashD
 
   const getSeverityIcon = (severity: ClashIssue['severity']) => {
     if (severity === 'error') {
-      return <AlertCircle className="h-4 w-4 text-red-500" />;
+      return <AlertCircle className="h-4 w-4" style={{color: '#F2B33D'}} />;
     }
-    return <AlertTriangle className="h-4 w-4 text-amber-500" />;
+    return <AlertTriangle className="h-4 w-4" style={{color: '#F2B33D'}} />;
   };
 
   const getSeverityBadge = (severity: ClashIssue['severity']) => {
@@ -56,12 +56,12 @@ export function ClashDetectionDrawer({ open, onOpenChange, clashResult }: ClashD
           <DrawerTitle className="flex items-center gap-2">
             {hasIssues ? (
               <>
-                <AlertCircle className="h-5 w-5 text-amber-500" />
+                <AlertCircle className="h-5 w-5" style={{color: '#F2B33D'}} />
                 Clash Detection Results
               </>
             ) : (
               <>
-                <CheckCircle2 className="h-5 w-5 text-green-500" />
+                <CheckCircle2 className="h-5 w-5" style={{color: '#04BF9D'}} />
                 No Clashes Detected
               </>
             )}
@@ -83,12 +83,12 @@ export function ClashDetectionDrawer({ open, onOpenChange, clashResult }: ClashD
                   <div className="text-sm text-muted-foreground">Total Issues</div>
                 </div>
                 <div className="rounded-lg border p-4 bg-red-50">
-                  <div className="text-2xl font-bold text-red-600">{errorCount}</div>
-                  <div className="text-sm text-red-700">Errors</div>
+                  <div className="text-2xl font-bold" style={{color: '#F2B33D'}}>{errorCount}</div>
+                  <div className="text-sm">Errors</div>
                 </div>
                 <div className="rounded-lg border p-4 bg-amber-50">
-                  <div className="text-2xl font-bold text-amber-600">{warningCount}</div>
-                  <div className="text-sm text-amber-700">Warnings</div>
+                  <div className="text-2xl font-bold" style={{color: '#F2B33D'}}>{warningCount}</div>
+                  <div className="text-sm">Warnings</div>
                 </div>
               </div>
 
@@ -132,11 +132,11 @@ export function ClashDetectionDrawer({ open, onOpenChange, clashResult }: ClashD
                 <div className="font-medium mb-2">Severity Levels:</div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 text-red-500" />
+                    <AlertCircle className="h-4 w-4" style={{color: '#F2B33D'}} />
                     <span><strong>Error:</strong> Critical issues that will cause manufacturing problems</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                    <AlertTriangle className="h-4 w-4" style={{color: '#F2B33D'}} />
                     <span><strong>Warning:</strong> Potential issues that should be reviewed</span>
                   </div>
                 </div>
@@ -144,7 +144,7 @@ export function ClashDetectionDrawer({ open, onOpenChange, clashResult }: ClashD
             </>
           ) : (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <CheckCircle2 className="h-16 w-16 text-green-500 mb-4" />
+              <CheckCircle2 className="h-16 w-16 mb-4" style={{color: '#04BF9D'}} />
               <h3 className="text-lg font-semibold mb-2">All Clear!</h3>
               <p className="text-muted-foreground max-w-md">
                 No manufacturing rule violations or conflicts detected. 

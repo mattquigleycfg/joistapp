@@ -5,20 +5,21 @@ import {
   NCCalculations,
   PunchStationType,
 } from '@/types/form-types';
-
-// Utility to round values to 0.5 mm precision
-const roundHalf = (value: number) => Math.round(value * 2) / 2;
+import { PunchStationConfig } from '@/types/manufacturing';
+import { MANUFACTURING_CONSTANTS } from './constants';
+import { roundHalf, calculateBoltOffset, isBearerProfile, isJoistProfile } from './utils/manufacturing';
 
 interface Punch {
   position: number;
   type: PunchStationType;
+  active: boolean;
 }
 
 export class NCFileGenerator {
   private calculations: NCCalculations;
   private partCode = '';
   private quantity = 1;
-  private manualPunches: any[] | null = null;
+  private manualPunches: Punch[] | null = null;
   private isManualMode = false;
   private updateVersion = 0; // Track updates to force re-renders
 
@@ -26,7 +27,7 @@ export class NCFileGenerator {
     this.calculations = this.initializeCalculations();
   }
   
-  setManualPunches(punches: any[] | null, profileType?: string) {
+  setManualPunches(punches: Punch[] | null, profileType?: string) {
     if (!punches) {
       // Clear manual mode when punches are reset
       this.manualPunches = null;
@@ -136,13 +137,13 @@ export class NCFileGenerator {
       stubs: [],
       endExclusion: 0,
       lengthMod: 0,
-      openingCentres: 650,
+      openingCentres: MANUFACTURING_CONSTANTS.SERVICE_HOLE_SPACING,
       holeQty: 0,
       tabOffset: 0,
-      flange: 63,
-      thickness: 1.8,
-      holeDia: 110,
-      holeEdgeDistance: 902.3
+      flange: MANUFACTURING_CONSTANTS.FLANGE_HEIGHT,
+      thickness: MANUFACTURING_CONSTANTS.PROFILE_THICKNESS,
+      holeDia: MANUFACTURING_CONSTANTS.DEFAULT_HOLE_DIAMETER,
+      holeEdgeDistance: MANUFACTURING_CONSTANTS.DEFAULT_HOLE_EDGE_DISTANCE
     };
   }
 
@@ -161,32 +162,34 @@ export class NCFileGenerator {
       this.partCode = exportData.programName;
     } else {
       // Fallback: Generate a basic part code: e.g., B_J450_12000_A
-      const prefix = (profileType === 'Bearer Single' || profileType === 'Bearer Box') ? 'B' : 'J';
+      const prefix = isBearerProfile(profileType) ? 'B' : 'J';
       this.partCode = `${prefix}_${profileData.profileHeight}_${length}_A`;
     }
 
     // Update basic parameters
-    this.calculations.thickness = 1.8;
-    this.calculations.flange = (profileType === 'Joist Single' || profileType === 'Joist Box') ? 59 : 63;
+    this.calculations.thickness = MANUFACTURING_CONSTANTS.PROFILE_THICKNESS;
+    this.calculations.flange = isJoistProfile(profileType) 
+      ? MANUFACTURING_CONSTANTS.JOIST_FLANGE_HEIGHT 
+      : MANUFACTURING_CONSTANTS.FLANGE_HEIGHT;
 
     // Calculate hole diameter based on type
     this.calculations.holeDia = this.getHoleDiameter(holeType);
     
     // Calculate end exclusion
-    this.calculations.endExclusion = ((this.calculations.holeDia / 2) + 300) * 2;
+    this.calculations.endExclusion = ((this.calculations.holeDia / 2) + MANUFACTURING_CONSTANTS.END_EXCLUSION_BASE) * 2;
     this.calculations.lengthMod = length - this.calculations.endExclusion;
 
     // Set hole edge distance and opening centres
-    if (profileType === 'Joist Single' || profileType === 'Joist Box') {
+    if (isJoistProfile(profileType)) {
       this.calculations.holeEdgeDistance = this.calculations.endExclusion / 2;
-      this.calculations.openingCentres = 650;
+      this.calculations.openingCentres = MANUFACTURING_CONSTANTS.SERVICE_HOLE_SPACING;
     } else {
-      this.calculations.holeEdgeDistance = 902.3;
-      this.calculations.openingCentres = 650;
+      this.calculations.holeEdgeDistance = MANUFACTURING_CONSTANTS.DEFAULT_HOLE_EDGE_DISTANCE;
+      this.calculations.openingCentres = MANUFACTURING_CONSTANTS.SERVICE_HOLE_SPACING;
     }
 
-    // Use user-supplied hole spacing (default to 650 if absent)
-    const desiredSpacing = profileData.holeSpacing || 650;
+    // Use user-supplied hole spacing (default to service hole spacing if absent)
+    const desiredSpacing = profileData.holeSpacing || MANUFACTURING_CONSTANTS.SERVICE_HOLE_SPACING;
 
     // Calculate evenly distributed holes based on desired spacing while keeping symmetry
     let spaces = Math.floor(this.calculations.lengthMod / desiredSpacing);
@@ -201,7 +204,7 @@ export class NCFileGenerator {
     }
 
     // Calculate tab offset
-    this.calculations.tabOffset = (profileType === 'Joist Single' || profileType === 'Joist Box')
+    this.calculations.tabOffset = isJoistProfile(profileType)
       ? (this.calculations.endExclusion / 2) + (this.calculations.openingCentres * 2) - (this.calculations.openingCentres / 2)
       : joistSpacing;
 
@@ -236,7 +239,7 @@ export class NCFileGenerator {
       case '115 Round':
       case '115mm':
         return 115;
-      default: return 110;
+      default: return MANUFACTURING_CONSTANTS.DEFAULT_HOLE_DIAMETER;
     }
   }
 
@@ -258,7 +261,7 @@ export class NCFileGenerator {
     this.calculations.dimples = [];
     this.calculations.stubs = [];
 
-    if (profileType === 'Bearer Single' || profileType === 'Bearer Box') {
+    if (isBearerProfile(profileType)) {
       if (screensEnabled) {
         this.generateScreensBearerHoles(length, joistSpacing, holeType, stubPositions, stubsEnabled, punchStations);
       } else {
@@ -281,15 +284,15 @@ export class NCFileGenerator {
     holeType: string,
     stubPositions?: number[],
     stubsEnabled?: boolean,
-    punchStations?: any[],
+    punchStations?: PunchStationConfig[],
   ) {
     // Check if punch types are enabled
     const isBoltHoleEnabled = !punchStations || punchStations.some(ps => ps.station === 'BOLT HOLE' && ps.enabled);
     
     // End bolt holes: always at 30 mm from ends (if enabled)
     if (isBoltHoleEnabled) {
-      this.calculations.boltHoles.push({ position: 30, active: true, type: 'BOLT HOLE' });
-      this.calculations.boltHoles.push({ position: length - 30, active: true, type: 'BOLT HOLE' });
+      this.calculations.boltHoles.push({ position: MANUFACTURING_CONSTANTS.END_BOLT_POSITION, active: true, type: 'BOLT HOLE' });
+      this.calculations.boltHoles.push({ position: length - MANUFACTURING_CONSTANTS.END_BOLT_POSITION, active: true, type: 'BOLT HOLE' });
     }
 
     // Check if dimples are enabled
@@ -297,7 +300,7 @@ export class NCFileGenerator {
     
     // Dimples: every 450 mm CTS starting from 479.5 mm (if enabled)
     if (isDimpleEnabled) {
-      for (let pos = 479.5; pos <= length - 270.5; pos += 450) {
+      for (let pos = MANUFACTURING_CONSTANTS.DIMPLE_START_BEARER; pos <= length - 270.5; pos += MANUFACTURING_CONSTANTS.DIMPLE_SPACING_BEARER) {
         this.calculations.dimples.push({ position: pos, active: true, type: 'DIMPLE' });
       }
     }
@@ -315,16 +318,16 @@ export class NCFileGenerator {
       
       sortedWebTabs.forEach((webTab, index) => {
         // Alternate: even index (0,2,4...) = -29.5, odd index (1,3,5...) = +29.5
-        const offset = (index % 2 === 0) ? -29.5 : 29.5;
+        const offset = calculateBoltOffset(index);
         const expectedBoltPosition = webTab.position + offset;
         
-        // Check if a bolt hole already exists near this position (within 10mm tolerance)
+        // Check if a bolt hole already exists near this position (within tolerance)
         const existingBolt = this.calculations.boltHoles.some(bolt => 
-          Math.abs(bolt.position - expectedBoltPosition) < 10
+          Math.abs(bolt.position - expectedBoltPosition) < MANUFACTURING_CONSTANTS.POSITION_TOLERANCE
         );
         
         // Only add if not too close to ends (avoid overlap with end bolt holes)
-        if (!existingBolt && expectedBoltPosition > 50 && expectedBoltPosition < (length - 50)) {
+        if (!existingBolt && expectedBoltPosition > MANUFACTURING_CONSTANTS.MIN_CLEARANCE && expectedBoltPosition < (length - MANUFACTURING_CONSTANTS.MIN_CLEARANCE)) {
           this.calculations.boltHoles.push({ 
             position: roundHalf(expectedBoltPosition), 
             active: true, 
@@ -392,11 +395,9 @@ export class NCFileGenerator {
       (ps.station === 'M SERVICE HOLE' || ps.station === 'SMALL SERVICE HOLE') && ps.enabled
     );
     
-    console.log('generateCoordinatedJoistHoles:', { length, holeType, isWebTabEnabled, isServiceHoleEnabled, punchStations });
     
     // If web tabs are disabled, don't generate them
     if (!isWebTabEnabled) {
-      console.log('Web tabs disabled, returning');
       return;
     }
     
@@ -411,7 +412,6 @@ export class NCFileGenerator {
     
     // Generate service holes first (if enabled and not "No Holes")
     if (holeType !== 'No Holes' && isServiceHoleEnabled) {
-      console.log('Generating service holes with web tabs');
       this.generateServiceHolesWithWebTabs(
         startOffset, 
         startOffset + availableLength, 
@@ -422,7 +422,6 @@ export class NCFileGenerator {
       );
     } else if (isWebTabEnabled) {
       // No service holes, generate web tabs with minimum spacing (if enabled)
-      console.log('Generating web tabs only');
       this.generateWebTabsOnly(
         startOffset,
         startOffset + availableLength,
@@ -431,7 +430,6 @@ export class NCFileGenerator {
       );
     }
     
-    console.log('Web holes generated:', this.calculations.webHoles);
     
   }
 
@@ -471,10 +469,10 @@ export class NCFileGenerator {
   }
 
   private generateWebTabsBetweenServiceHoles(servicePositions: number[], minWebTabSpacing: number, maxWebTabSpacing: number) {
-    console.log('generateWebTabsBetweenServiceHoles called:', { servicePositions, minWebTabSpacing, maxWebTabSpacing });
+    // console.log('generateWebTabsBetweenServiceHoles called:', { servicePositions, minWebTabSpacing, maxWebTabSpacing });
     
     if (servicePositions.length === 0) {
-      console.log('No service positions, returning');
+      // console.log('No service positions, returning');
       return;
     }
     
@@ -487,11 +485,11 @@ export class NCFileGenerator {
     
     const minClearance = 120; // 100mm service hole radius + 20mm web tab half-width
     
-    console.log('Span calculation:', { startPos, endPos, availableLength });
+    // console.log('Span calculation:', { startPos, endPos, availableLength });
     
     // If span is too small, don't add web tabs
     if (availableLength < minWebTabSpacing) {
-      console.log('Available length too small, returning');
+      // console.log('Available length too small, returning');
       return;
     }
     
@@ -499,12 +497,12 @@ export class NCFileGenerator {
     const minWebTabs = Math.ceil(availableLength / maxWebTabSpacing);
     const numWebTabs = Math.max(1, minWebTabs);
     
-    console.log('Web tabs to generate:', { minWebTabs, numWebTabs });
+    // console.log('Web tabs to generate:', { minWebTabs, numWebTabs });
     
     // Calculate actual spacing (will be between minSpacing and maxSpacing)
     const actualSpacing = availableLength / (numWebTabs + 1);
     
-    console.log('actualSpacing:', actualSpacing);
+    // console.log('actualSpacing:', actualSpacing);
     
     // Generate web tabs, shifting them if they conflict with service holes
     for (let i = 1; i <= numWebTabs; i++) {
@@ -526,23 +524,23 @@ export class NCFileGenerator {
         // Choose the shift that's closest to the ideal position and within bounds
         if (shiftedRight <= endPos && Math.abs(shiftedRight - idealPosition) <= Math.abs(shiftedLeft - idealPosition)) {
           finalPosition = shiftedRight;
-          console.log(`Web tab ${i}: shifted from ${idealPosition} to ${shiftedRight} (right of service hole at ${conflictingHole})`);
+          // console.log(`Web tab ${i}: shifted from ${idealPosition} to ${shiftedRight} (right of service hole at ${conflictingHole})`);
         } else if (shiftedLeft >= startPos) {
           finalPosition = shiftedLeft;
-          console.log(`Web tab ${i}: shifted from ${idealPosition} to ${shiftedLeft} (left of service hole at ${conflictingHole})`);
+          // console.log(`Web tab ${i}: shifted from ${idealPosition} to ${shiftedLeft} (left of service hole at ${conflictingHole})`);
         } else {
-          console.log(`Web tab ${i}: cannot place safely, skipping`);
+          // console.log(`Web tab ${i}: cannot place safely, skipping`);
           continue;
         }
       } else {
-        console.log(`Web tab ${i}: no conflict at position ${idealPosition}`);
+        // console.log(`Web tab ${i}: no conflict at position ${idealPosition}`);
       }
       
       this.calculations.webHoles.push({ position: roundHalf(finalPosition), active: true, type: 'WEB TAB' });
-      console.log(`Added web tab at ${roundHalf(finalPosition)}`);
+      // console.log(`Added web tab at ${roundHalf(finalPosition)}`);
     }
     
-    console.log('Final webHoles count:', this.calculations.webHoles.length);
+    // console.log('Final webHoles count:', this.calculations.webHoles.length);
   }
 
   private generateJoistWebTabs(startPos: number, endPos: number, minSpacing: number, maxSpacing: number) {
@@ -627,7 +625,7 @@ export class NCFileGenerator {
   private generateWebTabsOnly(startPos: number, endPos: number, minSpacing: number, maxSpacing: number) {
     const availableLength = endPos - startPos;
     
-    console.log('generateWebTabsOnly:', { startPos, endPos, availableLength, minSpacing, maxSpacing });
+    // console.log('generateWebTabsOnly:', { startPos, endPos, availableLength, minSpacing, maxSpacing });
     
     // Calculate optimal number of web tabs to stay within spacing constraints
     const minWebTabs = Math.ceil(availableLength / maxSpacing);
@@ -636,19 +634,19 @@ export class NCFileGenerator {
     // Use the minimum number that satisfies max spacing constraint
     const numWebTabs = Math.max(1, minWebTabs);
     
-    console.log('Calculated web tabs:', { minWebTabs, maxWebTabs, numWebTabs });
+    // console.log('Calculated web tabs:', { minWebTabs, maxWebTabs, numWebTabs });
     
     if (numWebTabs < 1) return;
     
     // Calculate actual spacing (will be between minSpacing and maxSpacing)
     const actualSpacing = availableLength / (numWebTabs + 1);
     
-    console.log('actualSpacing:', actualSpacing);
+    // console.log('actualSpacing:', actualSpacing);
     
     // Generate web tabs symmetrically with calculated spacing
     for (let i = 1; i <= numWebTabs; i++) {
       const position = startPos + (i * actualSpacing);
-      console.log(`Adding web tab ${i} at position:`, position);
+      // console.log(`Adding web tab ${i} at position:`, position);
       this.calculations.webHoles.push({ position: roundHalf(position), active: true, type: 'WEB TAB' });
     }
   }
@@ -728,18 +726,19 @@ export class NCFileGenerator {
     });
   }
 
-  private generateCoordinatedBearerHoles(length: number, joistSpacing: number, holeType: string, punchStations?: any[]) {
+  private generateCoordinatedBearerHoles(length: number, joistSpacing: number, holeType: string, punchStations?: PunchStationConfig[]) {
     // Check if punch types are enabled
     const isWebTabEnabled = !punchStations || punchStations.some(ps => ps.station === 'WEB TAB' && ps.enabled);
     const isServiceHoleEnabled = !punchStations || punchStations.some(ps => 
       (ps.station === 'M SERVICE HOLE' || ps.station === 'SMALL SERVICE HOLE') && ps.enabled
     );
     
-    console.log('Bearer generation:', { length, joistSpacing, holeType, isWebTabEnabled, isServiceHoleEnabled });
+    // TODO: Remove // console.log for production
+    // // console.log('Bearer generation:', { length, joistSpacing, holeType, isWebTabEnabled, isServiceHoleEnabled });
     
     // Generate service holes first (if enabled and not "No Holes")
     if (holeType !== 'No Holes' && isServiceHoleEnabled) {
-      const serviceHoleSpacing = this.calculations.openingCentres; // 650mm
+      const serviceHoleSpacing = this.calculations.openingCentres; // Service hole spacing
       const availableLength = length - (2 * serviceHoleSpacing);
       
       // Calculate how many service holes we can fit
@@ -762,19 +761,19 @@ export class NCFileGenerator {
       const startOffset = joistSpacing; // Start at first joist position
       const endOffset = length - joistSpacing; // End at last joist position
       
-      console.log('Generating bearer web tabs:', { startOffset, endOffset, joistSpacing });
+      // console.log('Generating bearer web tabs:', { startOffset, endOffset, joistSpacing });
       
       // Calculate how many web tabs fit with the given spacing
       const numWebTabs = Math.floor((endOffset - startOffset) / joistSpacing) + 1;
       
-      console.log('Number of web tabs:', numWebTabs);
+      // console.log('Number of web tabs:', numWebTabs);
       
       // Generate web tabs at exact joist spacing intervals
       for (let i = 0; i < numWebTabs; i++) {
         const position = startOffset + (i * joistSpacing);
         if (position <= endOffset) {
           this.calculations.webHoles.push({ position: roundHalf(position), active: true, type: 'WEB TAB' });
-          console.log(`Added bearer web tab at ${roundHalf(position)}`);
+          // console.log(`Added bearer web tab at ${roundHalf(position)}`);
         }
       }
     }
@@ -1049,7 +1048,7 @@ export class NCFileGenerator {
     // Gather all active punches
     const punches: Punch[] = [];
     const pushActive = (arr: typeof this.calculations.boltHoles) =>
-      arr.filter((h) => h.active).forEach((h) => punches.push({ position: h.position, type: h.type as PunchStationType }));
+      arr.filter((h) => h.active).forEach((h) => punches.push({ position: h.position, type: h.type as PunchStationType, active: true }));
 
     pushActive(this.calculations.boltHoles);
     pushActive(this.calculations.webHoles);

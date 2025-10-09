@@ -1,5 +1,7 @@
 import { NCCalculations, ProfileData } from '@/types/form-types';
 import { getPunchDimensions, getVisualDimensions } from './punch-dimensions';
+import { MANUFACTURING_CONSTANTS } from './constants';
+import { roundHalf } from './utils/manufacturing';
 
 export type ClashSeverity = 'error' | 'warning';
 export type ClashType = 'clearance' | 'overlap' | 'span-limit' | 'position-conflict' | 'alignment';
@@ -20,7 +22,7 @@ export interface ClashDetectionResult {
 }
 
 // Utility to round to 0.5mm precision for comparison
-const roundHalf = (value: number) => Math.round(value * 2) / 2;
+// Using shared utility function from manufacturing utils
 
 // Get clearance distance needed for a punch type along the profile length
 function getClearanceDistance(punchType: string): number {
@@ -65,23 +67,23 @@ export function detectClashes(
     const isEndBolt = bolt.position <= 35 || bolt.position >= profileLength - 35;
     if (isEndBolt) return; // Skip end bolts
     
-    if (bolt.position < 50) {
+    if (bolt.position < MANUFACTURING_CONSTANTS.MIN_CLEARANCE) {
       issues.push({
         type: 'clearance',
         position: bolt.position,
         element1: 'Bolt Hole (11mm)',
         element2: 'Profile Start',
-        issue: 'Bolt hole within 50mm of profile end (conflicts with 30mm end bolt)',
+        issue: `Bolt hole within ${MANUFACTURING_CONSTANTS.MIN_CLEARANCE}mm of profile end (conflicts with ${MANUFACTURING_CONSTANTS.END_BOLT_POSITION}mm end bolt)`,
         severity: 'error',
       });
     }
-    if (bolt.position > profileLength - 50) {
+    if (bolt.position > profileLength - MANUFACTURING_CONSTANTS.MIN_CLEARANCE) {
       issues.push({
         type: 'clearance',
         position: bolt.position,
         element1: 'Bolt Hole (11mm)',
         element2: 'Profile End',
-        issue: `Bolt hole within 50mm of profile end (conflicts with end bolt at ${profileLength - 30}mm)`,
+        issue: `Bolt hole within ${MANUFACTURING_CONSTANTS.MIN_CLEARANCE}mm of profile end (conflicts with end bolt at ${profileLength - MANUFACTURING_CONSTANTS.END_BOLT_POSITION}mm)`,
         severity: 'error',
       });
     }
@@ -91,7 +93,7 @@ export function detectClashes(
   calculations.webHoles.forEach(webTab => {
     if (!webTab.active) return;
     
-    const webTabHalfWidth = 22.5; // 45mm / 2
+    const webTabHalfWidth = MANUFACTURING_CONSTANTS.WEB_TAB_CLEARANCE; // 45mm / 2
     
     if (webTab.position < webTabHalfWidth) {
       issues.push({
@@ -99,7 +101,7 @@ export function detectClashes(
         position: webTab.position,
         element1: 'Web Tab (45mm wide)',
         element2: 'Profile Start',
-        issue: `Web tab edge extends beyond profile start (center at ${webTab.position}mm, needs ≥22.5mm)`,
+        issue: `Web tab edge extends beyond profile start (center at ${webTab.position}mm, needs ≥${MANUFACTURING_CONSTANTS.WEB_TAB_CLEARANCE}mm)`,
         severity: 'error',
       });
     }
@@ -109,7 +111,7 @@ export function detectClashes(
         position: webTab.position,
         element1: 'Web Tab (45mm wide)',
         element2: 'Profile End',
-        issue: `Web tab edge extends beyond profile end (center at ${webTab.position}mm, needs ≤${profileLength - 22.5}mm)`,
+        issue: `Web tab edge extends beyond profile end (center at ${webTab.position}mm, needs ≤${profileLength - MANUFACTURING_CONSTANTS.WEB_TAB_CLEARANCE}mm)`,
         severity: 'error',
       });
     }
@@ -196,7 +198,7 @@ export function detectClashes(
       if (!service.active) return;
       
       const distance = Math.abs(stub.position - service.position);
-      const requiredDistance = 250; // 115mm/2 + service radius + buffer
+      const requiredDistance = MANUFACTURING_CONSTANTS.SERVICE_CLEARANCE; // Service hole clearance
       
       if (distance < requiredDistance) {
         const serviceSize = getPunchDimensions(service.type)?.diameter || 200;
@@ -205,7 +207,7 @@ export function detectClashes(
           position: stub.position,
           element1: `${stub.type} (115×300mm)`,
           element2: `Service Hole (Ø${serviceSize}mm)`,
-          issue: `Min 250mm center-to-center violated (actual: ${Math.round(distance)}mm)`,
+          issue: `Min ${MANUFACTURING_CONSTANTS.SERVICE_CLEARANCE}mm center-to-center violated (actual: ${Math.round(distance)}mm)`,
           severity: 'warning',
         });
       }
@@ -219,7 +221,7 @@ export function detectClashes(
       .sort((a, b) => a.position - b.position);
     
     const nonEndBolts = calculations.boltHoles.filter(
-      b => b.active && b.position > 50 && b.position < profileLength - 50
+      b => b.active && b.position > MANUFACTURING_CONSTANTS.MIN_CLEARANCE && b.position < profileLength - MANUFACTURING_CONSTANTS.MIN_CLEARANCE
     );
 
     sortedWebTabs.forEach((webTab, index) => {
@@ -228,7 +230,7 @@ export function detectClashes(
       
       // Check if a bolt exists near this expected position
       const correspondingBolt = nonEndBolts.find(
-        b => Math.abs(b.position - expectedBoltPosition) < 10
+        b => Math.abs(b.position - expectedBoltPosition) < MANUFACTURING_CONSTANTS.POSITION_TOLERANCE
       );
       
       if (!correspondingBolt) {
@@ -280,7 +282,7 @@ export function detectClashes(
       .sort((a, b) => a.position - b.position);
     
     const nonEndBolts = calculations.boltHoles.filter(
-      b => b.active && b.position > 50 && b.position < profileLength - 50
+      b => b.active && b.position > MANUFACTURING_CONSTANTS.MIN_CLEARANCE && b.position < profileLength - MANUFACTURING_CONSTANTS.MIN_CLEARANCE
     );
 
     sortedWebTabs.forEach((webTab, index) => {
@@ -289,7 +291,7 @@ export function detectClashes(
       
       // Check if a bolt exists near this expected position
       const correspondingBolt = nonEndBolts.find(
-        b => Math.abs(b.position - expectedBoltPosition) < 10
+        b => Math.abs(b.position - expectedBoltPosition) < MANUFACTURING_CONSTANTS.POSITION_TOLERANCE
       );
       
       if (!correspondingBolt) {
@@ -313,8 +315,8 @@ export function detectClashes(
     .map(d => d.position)
     .sort((a, b) => a - b);
   
-  const expectedDimpleSpacing = isBearer ? 450 : 409.5;
-  const dimpleStart = isBearer ? 479.5 : 509.5;
+  const expectedDimpleSpacing = isBearer ? MANUFACTURING_CONSTANTS.DIMPLE_SPACING_BEARER : MANUFACTURING_CONSTANTS.DIMPLE_SPACING_JOIST;
+  const dimpleStart = isBearer ? MANUFACTURING_CONSTANTS.DIMPLE_START_BEARER : MANUFACTURING_CONSTANTS.DIMPLE_START_JOIST;
   
   dimplePositions.forEach((pos, index) => {
     if (index === 0) {
@@ -349,7 +351,7 @@ export function detectClashes(
     const kpa = profileData.kpaRating;
     
     // Get max limits
-    const maxLimit = kpa === '2.5' ? 11750 : 9300;
+    const maxLimit = MANUFACTURING_CONSTANTS.SPAN_LIMITS[kpa];
     
     if (spanLength > maxLimit) {
       issues.push({
@@ -368,7 +370,7 @@ export function detectClashes(
     const joistLength = profileData.joistLength;
     const kpa = profileData.kpaRating;
     
-    const maxLimit = kpa === '2.5' ? 11750 : 9300;
+    const maxLimit = MANUFACTURING_CONSTANTS.SPAN_LIMITS[kpa];
     
     if (joistLength > maxLimit) {
       issues.push({
@@ -390,7 +392,7 @@ export function detectClashes(
 
   // Expected spacing is the configured joist spacing
   const expectedWebTabSpacing = profileData.joistSpacing;
-  const tolerance = Math.max(expectedWebTabSpacing * 0.15, 100); // 15% tolerance or 100mm minimum
+  const tolerance = Math.max(expectedWebTabSpacing * MANUFACTURING_CONSTANTS.SPACING_TOLERANCE_PERCENT, MANUFACTURING_CONSTANTS.MIN_SPACING_TOLERANCE);
 
   for (let i = 0; i < webTabPositions.length - 1; i++) {
     const spacing = webTabPositions[i + 1] - webTabPositions[i];
@@ -428,16 +430,16 @@ export function detectClashes(
     if (nonCornerServicePositions.length > 1) {
       for (let i = 0; i < nonCornerServicePositions.length - 1; i++) {
         const spacing = nonCornerServicePositions[i + 1] - nonCornerServicePositions[i];
-        const expectedSpacing = 650;
+        const expectedSpacing = MANUFACTURING_CONSTANTS.SERVICE_HOLE_SPACING;
         
-        // Allow ±100mm tolerance on service hole spacing (more generous)
-        if (Math.abs(spacing - expectedSpacing) > 100) {
+        // Allow tolerance on service hole spacing
+        if (Math.abs(spacing - expectedSpacing) > MANUFACTURING_CONSTANTS.MIN_SPACING_TOLERANCE) {
           issues.push({
             type: 'position-conflict',
             position: nonCornerServicePositions[i],
             element1: `Service Hole ${i + 1}`,
             element2: `Service Hole ${i + 2}`,
-            issue: `Spacing ${Math.round(spacing)}mm deviates from standard ${expectedSpacing}mm (±100mm tolerance)`,
+            issue: `Spacing ${Math.round(spacing)}mm deviates from standard ${expectedSpacing}mm (±${MANUFACTURING_CONSTANTS.MIN_SPACING_TOLERANCE}mm tolerance)`,
             severity: 'warning',
           });
         }
@@ -459,7 +461,7 @@ export function detectClashes(
       
       const distance = Math.abs(punch1.position - punch2.position);
       const clearance2 = getClearanceDistance(punch2.type);
-      const minSeparation = 10; // Minimum edge separation on web face
+      const minSeparation = MANUFACTURING_CONSTANTS.POSITION_TOLERANCE; // Minimum edge separation on web face
       const requiredDistance = clearance1 + clearance2 + minSeparation;
       
       // Check for physical overlap on web face

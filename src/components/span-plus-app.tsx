@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProfileForm } from '@/components/forms/profile-form';
 import { ExportForm } from '@/components/forms/export-form';
 import { VisualizationPanel } from '@/components/visualization/visualization-panel';
-import { NCFileGenerator } from '@/lib/nc-generator';
+import { useNCGenerator } from '@/hooks/use-nc-generator';
 import { ProfileData, ExportData } from '@/types/form-types';
 import { Download, Eye, List, Maximize2, FileText, Code } from 'lucide-react';
 // Dynamically import heavy libs when needed to avoid initial bundle weight and optimize caching issues
@@ -21,7 +21,7 @@ import {
 
 export function SpanPlusApp() {
   // Function to generate program name from profile settings
-  const generateProgramName = (profile: ProfileData): string => {
+  const generateProgramName = useCallback((profile: ProfileData): string => {
     // Determine profile code
     let profileCode = '';
     switch (profile.profileType) {
@@ -55,7 +55,7 @@ export function SpanPlusApp() {
     }
     
     return programName;
-  };
+  }, []);
 
   const [profileData, setProfileData] = useState<ProfileData>({
     profileType: 'Bearer Single',
@@ -108,13 +108,16 @@ export function SpanPlusApp() {
     })
   });
 
-  const [ncGenerator, setNcGenerator] = useState<NCFileGenerator | null>(null);
-  const [punchUpdateVersion, setPunchUpdateVersion] = useState(0);
-
-  useEffect(() => {
-    const generator = new NCFileGenerator();
-    setNcGenerator(generator);
-  }, []);
+  // Use custom hook for NC generator
+  const { 
+    ncGenerator, 
+    updateCalculations, 
+    generateCSV, 
+    getCalculations, 
+    setManualPunches, 
+    clearManualMode, 
+    getUpdateVersion 
+  } = useNCGenerator(profileData, exportData);
 
   // Update program name when profile settings change
   useEffect(() => {
@@ -123,44 +126,40 @@ export function SpanPlusApp() {
       ...prev,
       programName: newProgramName
     }));
-  }, [profileData]);
+  }, [profileData, generateProgramName]);
 
   useEffect(() => {
     if (ncGenerator) {
       // Clear manual mode when profile settings change - Profile Settings should override manual edits
-      ncGenerator.clearManualMode();
-      // Pass null for platformData since it's no longer used
-      ncGenerator.updateCalculations(null as any, profileData, exportData);
-      // Force update after recalculation
-      setPunchUpdateVersion(ncGenerator.getUpdateVersion());
+      clearManualMode();
+      // Update calculations with new profile data
+      updateCalculations();
     }
-  }, [profileData, exportData, ncGenerator]);
+  }, [profileData, exportData, ncGenerator, clearManualMode, updateCalculations]);
   
   // Callback for when manual punches are updated
-  const handleManualPunchesUpdate = (punches: any[] | null) => {
+  const handleManualPunchesUpdate = useCallback((punches: any[] | null) => {
     if (ncGenerator) {
       if (punches === null) {
         // Reset to calculated mode
-        ncGenerator.clearManualMode();
+        clearManualMode();
         // Recalculate with current settings
-        ncGenerator.updateCalculations(null as any, profileData, exportData);
+        updateCalculations();
       } else {
         // Set manual punches, pass profileType for bolt/web tab sync on bearers
-        ncGenerator.setManualPunches(punches, profileData.profileType);
+        setManualPunches(punches);
       }
-      // Force re-render of all components
-      setPunchUpdateVersion(ncGenerator.getUpdateVersion());
     }
-  };
+  }, [ncGenerator, clearManualMode, updateCalculations, setManualPunches]);
 
-  const handleExportCSV = () => {
+  const handleExportCSV = useCallback(() => {
     if (!ncGenerator) {
       toast.error('NC Generator not initialized');
       return;
     }
 
     try {
-      const csvContent = ncGenerator.generateCSV();
+      const csvContent = generateCSV();
       const blob = new Blob([csvContent], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -176,11 +175,11 @@ export function SpanPlusApp() {
       toast.error('Failed to export CSV file');
       console.error('Export error:', error);
     }
-  };
+  }, [ncGenerator, generateCSV, exportData.programName]);
 
   const tableRef = useRef<HTMLDivElement>(null);
 
-  const handleExportPDF = async () => {
+  const handleExportPDF = useCallback(async () => {
     if (!tableRef.current) {
       toast.error('Cutting list not available');
       return;
@@ -217,24 +216,24 @@ export function SpanPlusApp() {
       console.error('PDF export error:', error);
       toast.error('Failed to export PDF');
     }
-  };
+  }, [exportData.programName]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="container mx-auto px-6 py-8 max-w-7xl">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+      <div className="container mx-auto px-6 py-8 max-w-7xl w-full">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="fade-in-up">
-            <h1 className="text-header text-gray-900 text-left">Span+ App</h1>
-            <p className="text-subheader text-gray-600 text-left">NC File Generator for Roll Formed Profiles</p>
+            <h1 className="text-header">Span+ App</h1>
+            <p className="text-subheader">NC File Generator for Roll Formed Profiles</p>
           </div>
           <div className="flex grid-gap-2">
             <Card className="card-system grid-p-2">
-              <div className="text-subheader text-gray-600">Profile Type</div>
+              <div className="text-subheader">Profile Type</div>
               <div className="text-body font-semibold">{profileData.profileType}</div>
             </Card>
             <Card className="card-system grid-p-2">
-              <div className="text-subheader text-gray-600">Length</div>
+              <div className="text-subheader">Length</div>
               <div className="text-numbers-bold">{profileData.length}mm</div>
             </Card>
           </div>
@@ -304,10 +303,10 @@ export function SpanPlusApp() {
                     </CardHeader>
                     <CardContent className="grid-p-3">
                       <div className="flex items-center space-x-3">
-                        <FileText className="h-8 w-8 text-blue-600" />
+                        <FileText className="h-8 w-8" style={{color: '#5550F2'}} />
                         <div>
                           <p className="text-body font-medium">Interactive Cutting List</p>
-                          <p className="text-sm text-gray-600">View punch positions and hole specifications</p>
+                          <p className="text-sm">View punch positions and hole specifications</p>
                         </div>
                       </div>
                       <div className="mt-4 flex justify-end">
@@ -338,7 +337,7 @@ export function SpanPlusApp() {
                               {ncGenerator && (
                                 <div className="bg-white p-4 rounded-md">
                                   <CuttingListTable
-                                    key={`cutting-list-${punchUpdateVersion}`}
+                                    key={`cutting-list-${getUpdateVersion()}`}
                                     ncGenerator={ncGenerator}
                                     partCode={ncGenerator.getPartCode()}
                                     quantity={exportData.quantity}
@@ -364,10 +363,10 @@ export function SpanPlusApp() {
                     </CardHeader>
                     <CardContent className="grid-p-3">
                       <div className="flex items-center space-x-3">
-                        <Code className="h-8 w-8 text-green-600" />
+                        <Code className="h-8 w-8" style={{color: '#04BF9D'}} />
                         <div>
                           <p className="text-body font-medium">NC File Data</p>
-                          <p className="text-sm text-gray-600">Raw CSV format for machine processing</p>
+                          <p className="text-sm">Raw CSV format for machine processing</p>
                         </div>
                       </div>
                       <div className="mt-4 flex justify-end">
@@ -396,7 +395,7 @@ export function SpanPlusApp() {
                             </DialogHeader>
                             <div className="overflow-auto max-h-[calc(90vh-120px)]">
                               {ncGenerator && (
-                                <div className="bg-gray-50 p-4 rounded-md" key={`csv-preview-${punchUpdateVersion}`}>
+                                <div className="bg-gray-50 p-4 rounded-md" key={`csv-preview-${getUpdateVersion()}`}>
                                   <pre className="text-numbers text-sm whitespace-pre-wrap">
                                     {ncGenerator.generateCSV()}
                                   </pre>
@@ -415,30 +414,20 @@ export function SpanPlusApp() {
 
           {/* Right Panel - Visualization */}
           <div className="lg:col-span-3">
-            <Card className="card-system">
-              <CardHeader className="grid-p-3">
-                <CardTitle className="text-header">Technical Drawing</CardTitle>
-                <CardDescription className="text-subheader">
-                  Interactive visualization of the {profileData.profileType.toLowerCase().replace(' single', '').replace(' box', '')} profile with dimensions
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                <VisualizationPanel 
-                  profileData={profileData}
-                  ncGenerator={ncGenerator}
-                  onPunchesUpdate={handleManualPunchesUpdate}
-                  onProfileDataUpdate={(updates) => {
-                    setProfileData(prev => ({ ...prev, ...updates }));
-                  }}
-                  updateVersion={punchUpdateVersion}
-                />
-              </CardContent>
-            </Card>
+            <VisualizationPanel 
+              profileData={profileData}
+              ncGenerator={ncGenerator}
+              onPunchesUpdate={handleManualPunchesUpdate}
+              onProfileDataUpdate={(updates) => {
+                setProfileData(prev => ({ ...prev, ...updates }));
+              }}
+              updateVersion={getUpdateVersion()}
+            />
           </div>
         </div>
       {/* Hidden cutting-list table for PDF export */}
       {ncGenerator && (
-        <div className="absolute left-[-9999px] top-0" ref={tableRef} key={`pdf-export-${punchUpdateVersion}`}>
+        <div className="absolute left-[-9999px] top-0" ref={tableRef} key={`pdf-export-${getUpdateVersion()}`}>
           <VisualizationPanel
             profileData={profileData}
             ncGenerator={ncGenerator}
@@ -446,7 +435,7 @@ export function SpanPlusApp() {
             onProfileDataUpdate={(updates) => {
               setProfileData(prev => ({ ...prev, ...updates }));
             }}
-            updateVersion={punchUpdateVersion}
+            updateVersion={getUpdateVersion()}
           />
           <div className="mt-4">
             <CuttingListTable

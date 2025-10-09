@@ -50,7 +50,7 @@ export function ExportForm({ data, onChange, onExportCSV, onExportPDF }: ExportF
                   type="number" 
                   {...field} 
                   onChange={e => field.onChange(Number(e.target.value))}
-                  className="text-right"
+                  className="sidebar-input"
                 />
               </FormControl>
               <FormMessage />
@@ -68,7 +68,7 @@ export function ExportForm({ data, onChange, onExportCSV, onExportPDF }: ExportF
                 <Input 
                   {...field} 
                   readOnly
-                  className="bg-gray-50 cursor-not-allowed"
+                  className="sidebar-input cursor-not-allowed"
                   title="Program name is automatically generated from profile settings"
                 />
               </FormControl>

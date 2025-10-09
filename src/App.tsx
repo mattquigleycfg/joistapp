@@ -2,7 +2,6 @@
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/sonner';
 import { SpanPlusApp } from '@/components/span-plus-app';
-import './App.css';
 
 function App() {
   return (

@@ -6,19 +6,23 @@ import { ClashDetectionDrawer } from '@/components/clash-detection-drawer';
 import { detectClashes, ClashDetectionResult } from '@/lib/clash-detection';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle } from 'lucide-react';
-
-interface Punch {
-  id: string;
-  position: number;
-  type: string;
-  active: boolean;
-}
+import { AlertTriangle, Maximize2 } from 'lucide-react';
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer';
+import { Punch } from '@/types/manufacturing';
 
 interface VisualizationPanelProps {
   profileData: ProfileData;
   ncGenerator: NCFileGenerator | null;
-  onPunchesUpdate?: (punches: any[] | null) => void;
+  onPunchesUpdate?: (punches: Punch[] | null) => void;
   onProfileDataUpdate?: (data: Partial<ProfileData>) => void;
   updateVersion?: number;
 }
@@ -26,6 +30,7 @@ interface VisualizationPanelProps {
 export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, onProfileDataUpdate, updateVersion }: VisualizationPanelProps) {
   const [manualPunches, setManualPunches] = useState<Punch[] | null>(null);
   const [clashDrawerOpen, setClashDrawerOpen] = useState(false);
+  const [expandedView, setExpandedView] = useState(false);
   
   // Handle punch updates from the editor table
   const handlePunchesUpdate = (punches: Punch[] | null) => {
@@ -100,7 +105,7 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
   if (!svgData) {
     return (
       <div className="w-full h-[400px] bg-slate-50 rounded-lg border overflow-hidden flex items-center justify-center">
-        <div className="text-gray-500">Loading visualization...</div>
+        <div className="text-body">Loading visualization...</div>
       </div>
     );
   }
@@ -165,9 +170,324 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
 
   const totalIssues = clashResult.errorCount + clashResult.warningCount;
 
+  // Render dimension annotations for punches
+  const renderDimensions = () => {
+    if (!svgData) return null;
+
+    const { offsetX, offsetY, profileHeight, scale, calculations } = svgData;
+
+    return (
+      <g>
+        {/* Web tab dimensions */}
+        {calculations?.webHoles?.filter(p => p.active).map((punch, index) => {
+          const x = offsetX + (punch.position * scale);
+          const dimY = offsetY + profileHeight + 80;
+          
+          return (
+            <g key={`dim-web-${index}`}>
+              {/* Dimension line */}
+              <line
+                x1={x}
+                y1={offsetY + profileHeight + 20}
+                x2={x}
+                y2={dimY}
+                stroke="#666"
+                strokeWidth="1.5"
+                strokeDasharray="4,4"
+              />
+              {/* Dimension text */}
+              <text
+                x={x}
+                y={dimY + 20}
+                textAnchor="middle"
+                fontSize="14"
+                fontWeight="500"
+                fill="#262626"
+                fontFamily="Roboto Mono"
+              >
+                {punch.position.toFixed(1)}mm
+              </text>
+            </g>
+          );
+        })}
+        
+        {/* Service hole dimensions */}
+        {calculations?.serviceHoles?.filter(p => p.active).map((punch, index) => {
+          const x = offsetX + (punch.position * scale);
+          const dimY = offsetY - 60;
+          
+          return (
+            <g key={`dim-service-${index}`}>
+              <line
+                x1={x}
+                y1={offsetY - 20}
+                x2={x}
+                y2={dimY}
+                stroke="#666"
+                strokeWidth="1.5"
+                strokeDasharray="4,4"
+              />
+              <text
+                x={x}
+                y={dimY - 10}
+                textAnchor="middle"
+                fontSize="14"
+                fontWeight="500"
+                fill="#262626"
+                fontFamily="Roboto Mono"
+              >
+                {punch.position.toFixed(1)}mm
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Stub dimensions */}
+        {calculations?.stubs?.filter(p => p.active).map((punch, index) => {
+          const x = offsetX + (punch.position * scale);
+          const dimY = offsetY - 100;
+          
+          return (
+            <g key={`dim-stub-${index}`}>
+              <line
+                x1={x}
+                y1={offsetY - 20}
+                x2={x}
+                y2={dimY}
+                stroke="#666"
+                strokeWidth="1.5"
+                strokeDasharray="4,4"
+              />
+              <text
+                x={x}
+                y={dimY - 10}
+                textAnchor="middle"
+                fontSize="14"
+                fontWeight="500"
+                fill="#262626"
+                fontFamily="Roboto Mono"
+              >
+                {punch.position.toFixed(1)}mm
+              </text>
+            </g>
+          );
+        })}
+      </g>
+    );
+  };
+
   return (
     <>
-      <div className="relative w-full h-[400px]">
+      <div className="card-system grid-m-3 grid-p-3">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-header">Technical Drawing</h3>
+          <Drawer open={expandedView} onOpenChange={setExpandedView}>
+            <DrawerTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                <Maximize2 className="h-4 w-4" />
+                Expand
+              </Button>
+            </DrawerTrigger>
+            <DrawerContent className="h-[90vh]">
+            <DrawerHeader>
+              <DrawerTitle className="text-header">Technical Drawing - Expanded</DrawerTitle>
+              <DrawerDescription>
+                {profileData.profileType} with baseline dimensions
+              </DrawerDescription>
+            </DrawerHeader>
+            <div className="flex-1 overflow-auto p-6">
+              <div className="w-full h-full">
+                {/* Expanded visualization with dimensions */}
+                <div className="viz-container w-full h-full min-h-[700px]">
+                  <svg
+                    width="100%"
+                    height="100%"
+                    viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+                    className="w-full h-full"
+                  >
+                    {/* Same content as main view */}
+                    <rect width={svgWidth} height={svgHeight} fill="#f8fafc" />
+                    
+                    {/* Profile outline */}
+                    <g>
+                      <rect
+                        x={offsetX}
+                        y={offsetY}
+                        width={profileLength}
+                        height={profileHeight}
+                        fill="none"
+                        stroke="#1565c0"
+                        strokeWidth="2"
+                        rx="1"
+                      />
+                      <rect
+                        x={offsetX}
+                        y={offsetY - (63 * scale)}
+                        width={profileLength}
+                        height={63 * scale}
+                        fill="none"
+                        stroke="#1565c0"
+                        strokeWidth="1.5"
+                      />
+                      <rect
+                        x={offsetX}
+                        y={offsetY + profileHeight}
+                        width={profileLength}
+                        height={63 * scale}
+                        fill="none"
+                        stroke="#1565c0"
+                        strokeWidth="1.5"
+                      />
+                      {(profileData.profileType === 'Joist Single' || profileData.profileType === 'Joist Box') && (
+                        <>
+                          <rect
+                            x={offsetX}
+                            y={offsetY - (63 * scale) - (15 * scale)}
+                            width={profileLength}
+                            height={15 * scale}
+                            fill="none"
+                            stroke="#1565c0"
+                            strokeWidth="1"
+                          />
+                          <rect
+                            x={offsetX}
+                            y={offsetY + profileHeight + (63 * scale)}
+                            width={profileLength}
+                            height={15 * scale}
+                            fill="none"
+                            stroke="#1565c0"
+                            strokeWidth="1"
+                          />
+                        </>
+                      )}
+                    </g>
+                    
+                    {/* Bolt holes */}
+                    {calculations.boltHoles?.filter(hole => hole.active).map((hole, index) => (
+                      <g key={`bolt-${index}`}>              
+                        <circle
+                          cx={offsetX + hole.position * scale}
+                          cy={topBoltY}
+                          r={Math.max(12 * scale / 2, 3)}
+                          fill="#ef4444"
+                          stroke="#dc2626"
+                          strokeWidth="1"
+                        />
+                        <circle
+                          cx={offsetX + hole.position * scale}
+                          cy={bottomBoltY}
+                          r={Math.max(12 * scale / 2, 3)}
+                          fill="#ef4444"
+                          stroke="#dc2626"
+                          strokeWidth="1"
+                        />
+                      </g>
+                    ))}
+                    
+                    {/* Web tabs */}
+                    {calculations.webHoles?.filter(hole => hole.active).map((hole, index) => (
+                      <rect
+                        key={`web-${index}`}
+                        x={offsetX + hole.position * scale - (20 * scale)}
+                        y={offsetY + profileHeight / 2 - (50 * scale)}
+                        width={40 * scale}
+                        height={100 * scale}
+                        fill="#22c55e"
+                        stroke="#16a34a"
+                        strokeWidth="1"
+                        rx="2"
+                      />
+                    ))}
+                    
+                    {/* Service holes */}
+                    {calculations.serviceHoles?.filter(hole => hole.active).map((hole, index) => {
+                      const radius = getHoleDiameter(profileData.holeType) / 2;
+                      return (
+                        <circle
+                          key={`service-${index}`}
+                          cx={offsetX + hole.position * scale}
+                          cy={offsetY + profileHeight / 2}
+                          r={radius}
+                          fill="#3b82f6"
+                          stroke="#2563eb"
+                          strokeWidth="1"
+                          opacity="0.8"
+                        />
+                      );
+                    })}
+                    
+                    {/* Dimples */}
+                    {calculations.dimples?.filter(dimple => dimple.active).map((dimple, index) => {
+                      const dimpleSize = 10 * scale;
+                      const centerX = offsetX + dimple.position * scale;
+                      const makePoints = (centerY: number) => `
+                        ${centerX},${centerY - dimpleSize}
+                        ${centerX + dimpleSize},${centerY}
+                        ${centerX},${centerY + dimpleSize}
+                        ${centerX - dimpleSize},${centerY}
+                      `;
+                      return (
+                        <g key={`dimple-${index}`}>  
+                          <polygon
+                            points={makePoints(topBoltY)}
+                            fill="#f59e0b"
+                            stroke="#d97706"
+                            strokeWidth="1"
+                          />
+                          <polygon
+                            points={makePoints(bottomBoltY)}
+                            fill="#f59e0b"
+                            stroke="#d97706"
+                            strokeWidth="1"
+                          />
+                        </g>
+                      );
+                    })}
+                    
+                    {/* Stubs */}
+                    {calculations.stubs?.filter(stub => stub.active).map((stub, index) => {
+                      const stubX = offsetX + stub.position * scale;
+                      const stubY = offsetY + profileHeight / 2;
+                      const patternScale = Math.max(scale * 0.25, 0.025);
+                      return (
+                        <StubPattern
+                          key={`stub-${index}`}
+                          centerX={stubX}
+                          centerY={stubY}
+                          patternScale={patternScale}
+                        />
+                      );
+                    })}
+                    
+                    {/* Dimensions - shown in drawer */}
+                    {renderDimensions()}
+                    
+                    <defs>
+                      <marker
+                        id="arrowhead-expanded"
+                        markerWidth="10"
+                        markerHeight="7"
+                        refX="9"
+                        refY="3.5"
+                        orient="auto"
+                      >
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#374151" />
+                      </marker>
+                    </defs>
+                  </svg>
+                </div>
+              </div>
+            </div>
+            <DrawerFooter>
+              <DrawerClose asChild>
+                <Button variant="outline">Close</Button>
+              </DrawerClose>
+            </DrawerFooter>
+          </DrawerContent>
+        </Drawer>
+        </div>
+        
+        <div className="relative w-full h-[400px]">
         <div className="viz-container w-full h-full">
           <svg
           width="100%"
@@ -434,6 +754,8 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
         </text>
         
         {/* Arrow markers for dimension lines */}
+        {/* Dimensions removed from main view - only shown in drawer */}
+        
         <defs>
           <marker
             id="arrowhead"
@@ -465,12 +787,14 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
             {totalIssues > 0 && (
               <Badge 
                 variant="secondary" 
-                className="ml-2 bg-white text-red-600 hover:bg-white"
+                className="ml-2 bg-white hover:bg-white"
+                style={{color: '#F2B33D'}}
               >
                 {totalIssues}
               </Badge>
             )}
           </Button>
+        </div>
         </div>
       </div>
       

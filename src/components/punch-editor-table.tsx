@@ -475,7 +475,7 @@ export function PunchEditorTable({
       </CardHeader>
       
       <CardContent className="p-0">
-        <div className="max-h-96 overflow-y-auto border rounded-lg">
+        <div className="max-h-[600px] overflow-y-auto border rounded-lg">
           <Table>
             <TableHeader className="sticky top-0 bg-white z-10">
               <TableRow>
@@ -522,7 +522,7 @@ export function PunchEditorTable({
                               {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             </Button>
                           <div className={cn("w-3 h-3 rounded-full", punchColors[type])} />
-                          <span className={cn("text-body", !isEnabled && "text-gray-500")}>{displayName}</span>
+                          <span className={cn("text-body", !isEnabled && "opacity-50")}>{displayName}</span>
                           {typePunches.length > 0 && (
                             <Badge variant="secondary" className="ml-2">
                               {typePunches.length}
@@ -542,7 +542,6 @@ export function PunchEditorTable({
                           <Switch
                             checked={isEnabled}
                             onCheckedChange={(checked) => handleToggleStation(type, checked)}
-                            className="data-[state=unchecked]:bg-gray-300"
                           />
                         </div>
                       </div>
@@ -578,7 +577,7 @@ export function PunchEditorTable({
                               type="number"
                               value={editValue}
                               onChange={(e) => setEditValue(e.target.value)}
-                              className="w-24 h-7 text-sm"
+                              className="w-24 h-7 text-sm sidebar-input"
                               autoFocus
                             />
                             <Button
@@ -601,7 +600,8 @@ export function PunchEditorTable({
                         ) : (
                           <button
                             onClick={() => handleEdit(punch.id, punch.position)}
-                            className="w-24 h-7 text-sm px-3 py-1 bg-white border border-input rounded-md text-numbers hover:text-blue-600 hover:border-blue-500 transition-colors text-left"
+                            className="w-24 h-7 text-sm px-3 py-1 bg-white border border-input rounded-md text-numbers transition-colors text-left"
+                            style={{color: '#262626'}}
                           >
                             {punch.position.toFixed(1)}
                           </button>
@@ -621,7 +621,7 @@ export function PunchEditorTable({
                             className="h-7 w-7 p-0 bg-white shadow-sm hover:shadow-md transition-all opacity-0 group-hover:opacity-100"
                             title="Duplicate punch"
                           >
-                            <Plus className="h-3 w-3 text-blue-500" />
+                            <Plus className="h-3 w-3" style={{color: '#5550F2'}} />
                           </Button>
                           <Button
                             variant="ghost"
@@ -630,7 +630,7 @@ export function PunchEditorTable({
                             className="h-7 w-7 p-0 bg-white shadow-sm hover:shadow-md transition-all opacity-0 group-hover:opacity-100"
                             title="Delete punch"
                           >
-                            <Trash2 className="h-3 w-3 text-red-500" />
+                            <Trash2 className="h-3 w-3" style={{color: '#F2B33D'}} />
                           </Button>
                         </div>
                       </TableCell>
