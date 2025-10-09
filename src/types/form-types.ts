@@ -8,7 +8,8 @@ export interface PlatformData {
 export interface ProfileData {
   profileType: 'Joist Single' | 'Bearer Single' | 'Joist Box' | 'Bearer Box';
   profileHeight: number;
-  length: number;
+  length: number; // Profile Length - actual member length
+  joistLength?: number; // Joist Length - only for bearers, represents joist span
   joistSpacing: number;
   stubSpacing: number;
   stubPositions?: number[];
@@ -19,6 +20,10 @@ export interface ProfileData {
   punchStations: PunchStationSettings[];
   // For joist profiles: add SERVICE punches at 131mm from each end
   endBoxJoist?: boolean;
+  // Screens mode: special hole positioning for screen applications
+  screensEnabled?: boolean;
+  // kPa rating: structural load rating (applies to joists only)
+  kpaRating?: '2.5' | '5.0';
 }
 
 export interface ExportData {

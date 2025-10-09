@@ -61,6 +61,7 @@ export function SpanPlusApp() {
     profileType: 'Bearer Single',
     profileHeight: 350,
     length: 5200,
+    joistLength: 6000, // Default joist length for bearer
     joistSpacing: 600,
     stubSpacing: 1200,
     stubPositions: [331, 1531, 2731, 3931, 4869], // Initial stub positions for 5200mm length
@@ -76,6 +77,8 @@ export function SpanPlusApp() {
       { station: 'CORNER BRACKETS', enabled: true },
     ],
     endBoxJoist: false,
+    screensEnabled: false,
+    kpaRating: '2.5',
   });
 
   const [exportData, setExportData] = useState<ExportData>({
@@ -84,6 +87,7 @@ export function SpanPlusApp() {
       profileType: 'Bearer Single',
       profileHeight: 350,
       length: 5200,
+      joistLength: 6000,
       joistSpacing: 600,
       stubSpacing: 1200,
       stubPositions: [331, 1531, 2731, 3931, 4869],
@@ -99,6 +103,8 @@ export function SpanPlusApp() {
         { station: 'CORNER BRACKETS', enabled: true },
       ],
       endBoxJoist: false,
+      screensEnabled: false,
+      kpaRating: '2.5',
     })
   });
 

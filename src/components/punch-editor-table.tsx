@@ -165,9 +165,9 @@ export function PunchEditorTable({
     collectPunches(calcs.webHoles, 'WEB TAB');
     collectPunches(calcs.serviceHoles, calcs.serviceHoles[0]?.type === 'SMALL SERVICE HOLE' ? 'SMALL SERVICE HOLE' : 'M SERVICE HOLE');
     
-    // Separate corner brackets from service stubs
-    const cornerBrackets = calcs.stubs.filter(s => s.position === 131 || s.position === (profileLength - 131));
-    const serviceStubs = calcs.stubs.filter(s => s.position !== 131 && s.position !== (profileLength - 131));
+    // Separate corner brackets from service stubs by type
+    const cornerBrackets = calcs.stubs.filter(s => s.type === 'CORNER BRACKETS');
+    const serviceStubs = calcs.stubs.filter(s => s.type !== 'CORNER BRACKETS');
     
     collectPunches(cornerBrackets, 'CORNER BRACKETS');
     collectPunches(serviceStubs, 'SERVICE');
@@ -467,7 +467,8 @@ export function PunchEditorTable({
         </div>
         {isBearer && (
           <div className="text-sm text-amber-600 bg-amber-50 p-2 rounded-md">
-            ⚠️ <strong>Bearer Mode:</strong> Bolt holes automatically align with web tabs. When you edit web tabs, corresponding bolt holes will be updated.
+            ⚠️ <strong>Bearer Mode:</strong> Bolt holes automatically align with web tabs using alternating ±29.5mm offset pattern. 
+            (Position 1: -29.5mm, Position 2: +29.5mm, Position 3: -29.5mm, etc.). End bolt holes at ±30mm remain fixed.
           </div>
         )}
         </div>
