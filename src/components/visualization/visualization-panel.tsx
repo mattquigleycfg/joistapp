@@ -2,6 +2,11 @@ import { useMemo, useState } from 'react';
 import { ProfileData } from '@/types/form-types';
 import { NCFileGenerator } from '@/lib/nc-generator';
 import { PunchEditorTable } from '@/components/punch-editor-table';
+import { ClashDetectionDrawer } from '@/components/clash-detection-drawer';
+import { detectClashes, ClashDetectionResult } from '@/lib/clash-detection';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { AlertTriangle } from 'lucide-react';
 
 interface Punch {
   id: string;
@@ -20,6 +25,7 @@ interface VisualizationPanelProps {
 
 export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, onProfileDataUpdate, updateVersion }: VisualizationPanelProps) {
   const [manualPunches, setManualPunches] = useState<Punch[] | null>(null);
+  const [clashDrawerOpen, setClashDrawerOpen] = useState(false);
   
   // Handle punch updates from the editor table
   const handlePunchesUpdate = (punches: Punch[] | null) => {
@@ -33,6 +39,16 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
       ncGenerator.setManualPunches(punches);
     }
   };
+  
+  // Compute clash detection results
+  const clashResult = useMemo<ClashDetectionResult>(() => {
+    if (!ncGenerator) {
+      return { issues: [], errorCount: 0, warningCount: 0 };
+    }
+    
+    const calculations = ncGenerator.getCalculations();
+    return detectClashes(calculations, profileData);
+  }, [ncGenerator, profileData, updateVersion]);
   
   const svgData = useMemo(() => {
     if (!ncGenerator) return null;
@@ -147,15 +163,18 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
     );
   };
 
+  const totalIssues = clashResult.errorCount + clashResult.warningCount;
+
   return (
     <>
-      <div className="viz-container w-full h-[400px]">
-        <svg
-        width="100%"
-        height="100%"
-        viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-        className="w-full h-full"
-      >
+      <div className="relative w-full h-[400px]">
+        <div className="viz-container w-full h-full">
+          <svg
+          width="100%"
+          height="100%"
+          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+          className="w-full h-full"
+        >
         {/* Background */}
         <rect width={svgWidth} height={svgHeight} fill="#f8fafc" />
         
@@ -431,7 +450,36 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
           </marker>
         </defs>
         </svg>
+        </div>
+        
+        {/* Clash Detection Button - Bottom Left Corner */}
+        <div className="absolute bottom-4 left-4 z-10">
+          <Button
+            onClick={() => setClashDrawerOpen(true)}
+            variant={totalIssues > 0 ? "destructive" : "default"}
+            size="sm"
+            className="shadow-lg relative"
+          >
+            <AlertTriangle className="h-4 w-4 mr-2" />
+            Clash Detection
+            {totalIssues > 0 && (
+              <Badge 
+                variant="secondary" 
+                className="ml-2 bg-white text-red-600 hover:bg-white"
+              >
+                {totalIssues}
+              </Badge>
+            )}
+          </Button>
+        </div>
       </div>
+      
+      {/* Clash Detection Drawer */}
+      <ClashDetectionDrawer
+        open={clashDrawerOpen}
+        onOpenChange={setClashDrawerOpen}
+        clashResult={clashResult}
+      />
       
       {/* Punch Editor Table */}
       <PunchEditorTable
