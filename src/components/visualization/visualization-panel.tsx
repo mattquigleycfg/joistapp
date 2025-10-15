@@ -25,9 +25,10 @@ interface VisualizationPanelProps {
   onPunchesUpdate?: (punches: Punch[] | null) => void;
   onProfileDataUpdate?: (data: Partial<ProfileData>) => void;
   updateVersion?: number;
+  showDimensions?: boolean;
 }
 
-export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, onProfileDataUpdate, updateVersion }: VisualizationPanelProps) {
+export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, onProfileDataUpdate, updateVersion, showDimensions = false }: VisualizationPanelProps) {
   const [manualPunches, setManualPunches] = useState<Punch[] | null>(null);
   const [clashDrawerOpen, setClashDrawerOpen] = useState(false);
   const [expandedView, setExpandedView] = useState(false);
@@ -170,22 +171,46 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
 
   const totalIssues = clashResult.errorCount + clashResult.warningCount;
 
-  // Render dimension annotations for punches
+  // Render dimension annotations for punches with overlap prevention
   const renderDimensions = () => {
     if (!svgData) return null;
 
     const { offsetX, offsetY, profileHeight, scale, calculations } = svgData;
+    
+    // Helper function to check if two dimensions would overlap
+    const wouldOverlap = (x1: number, x2: number, minDistance = 40) => {
+      return Math.abs(x1 - x2) < minDistance;
+    };
+    
+    // Calculate Y positions with staggering to prevent overlap
+    const calculateYOffset = (positions: number[], currentIndex: number, baseY: number, increment: number): number => {
+      if (currentIndex === 0) return baseY;
+      
+      const currentX = positions[currentIndex];
+      let yOffset = baseY;
+      let level = 0;
+      
+      // Check previous dimensions for overlaps
+      for (let i = 0; i < currentIndex; i++) {
+        const prevX = positions[i];
+        if (wouldOverlap(currentX, prevX)) {
+          level++;
+        }
+      }
+      
+      return baseY + (level % 3) * increment; // Stagger in 3 levels
+    };
 
     return (
       <g>
-        {/* Web tab dimensions */}
-        {calculations?.webHoles?.filter(p => p.active).map((punch, index) => {
+        {/* Web tab dimensions with smart positioning */}
+        {calculations?.webHoles?.filter(p => p.active).map((punch, index, array) => {
+          const positions = array.map(p => offsetX + (p.position * scale));
           const x = offsetX + (punch.position * scale);
-          const dimY = offsetY + profileHeight + 80;
+          const dimY = calculateYOffset(positions, index, offsetY + profileHeight + 80, 35);
           
           return (
             <g key={`dim-web-${index}`}>
-              {/* Dimension line */}
               <line
                 x1={x}
                 y1={offsetY + profileHeight + 20}
@@ -195,7 +220,6 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
                 strokeWidth="1.5"
                 strokeDasharray="4,4"
               />
-              {/* Dimension text */}
               <text
                 x={x}
                 y={dimY + 20}
@@ -211,10 +235,11 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
           );
         })}
         
-        {/* Service hole dimensions */}
-        {calculations?.serviceHoles?.filter(p => p.active).map((punch, index) => {
+        {/* Service hole dimensions with smart positioning */}
+        {calculations?.serviceHoles?.filter(p => p.active).map((punch, index, array) => {
+          const positions = array.map(p => offsetX + (p.position * scale));
           const x = offsetX + (punch.position * scale);
-          const dimY = offsetY - 60;
+          const dimY = calculateYOffset(positions, index, offsetY - 60, -35);
           
           return (
             <g key={`dim-service-${index}`}>
@@ -242,10 +267,11 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
           );
         })}
 
-        {/* Stub dimensions */}
-        {calculations?.stubs?.filter(p => p.active).map((punch, index) => {
+        {/* Stub dimensions with smart positioning */}
+        {calculations?.stubs?.filter(p => p.active).map((punch, index, array) => {
+          const positions = array.map(p => offsetX + (p.position * scale));
           const x = offsetX + (punch.position * scale);
-          const dimY = offsetY - 100;
+          const dimY = calculateYOffset(positions, index, offsetY - 100, -35);
           
           return (
             <g key={`dim-stub-${index}`}>
@@ -670,53 +696,57 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
             );
           })}
         
-        {/* Dimension lines and text */}
-        {/* Length dimension */}
-        <line
-          x1={offsetX}
-          y1={offsetY + profileHeight + flangeHeight + 30}
-          x2={offsetX + profileLength}
-          y2={offsetY + profileHeight + flangeHeight + 30}
-          stroke="#374151"
-          strokeWidth="1"
-          markerEnd="url(#arrowhead)"
-          markerStart="url(#arrowhead)"
-        />
-        <text
-          x={offsetX + profileLength / 2}
-          y={offsetY + profileHeight + flangeHeight + 60}
-          textAnchor="middle"
-          fontSize="24"
-          fill="#4b5563"
-          fontFamily="'Roboto Mono', monospace"
-          fontWeight="500"
-        >
-          Length: {profileData.length}mm
-        </text>
-        
-        {/* Height dimension */}
-        <line
-          x1={offsetX - 50}
-          y1={offsetY}
-          x2={offsetX - 50}
-          y2={offsetY + profileHeight}
-          stroke="#374151"
-          strokeWidth="1"
-          markerEnd="url(#arrowhead)"
-          markerStart="url(#arrowhead)"
-        />
-        <text
-          x={offsetX - 80}
-          y={offsetY + profileHeight / 2}
-          textAnchor="middle"
-          fontSize="24"
-          fill="#4b5563"
-          fontFamily="'Roboto Mono', monospace"
-          fontWeight="500"
-          transform={`rotate(-90, ${offsetX - 80}, ${offsetY + profileHeight / 2})`}
-        >
-          Height: {profileData.profileHeight}mm
-        </text>
+        {/* Dimension lines and text - always show or based on showDimensions prop */}
+        {showDimensions && (
+          <>
+            {/* Length dimension */}
+            <line
+              x1={offsetX}
+              y1={offsetY + profileHeight + flangeHeight + 30}
+              x2={offsetX + profileLength}
+              y2={offsetY + profileHeight + flangeHeight + 30}
+              stroke="#374151"
+              strokeWidth="1"
+              markerEnd="url(#arrowhead)"
+              markerStart="url(#arrowhead)"
+            />
+            <text
+              x={offsetX + profileLength / 2}
+              y={offsetY + profileHeight + flangeHeight + 60}
+              textAnchor="middle"
+              fontSize="24"
+              fill="#4b5563"
+              fontFamily="'Roboto Mono', monospace"
+              fontWeight="500"
+            >
+              Length: {profileData.length}mm
+            </text>
+            
+            {/* Height dimension */}
+            <line
+              x1={offsetX - 50}
+              y1={offsetY}
+              x2={offsetX - 50}
+              y2={offsetY + profileHeight}
+              stroke="#374151"
+              strokeWidth="1"
+              markerEnd="url(#arrowhead)"
+              markerStart="url(#arrowhead)"
+            />
+            <text
+              x={offsetX - 80}
+              y={offsetY + profileHeight / 2}
+              textAnchor="middle"
+              fontSize="24"
+              fill="#4b5563"
+              fontFamily="'Roboto Mono', monospace"
+              fontWeight="500"
+              transform={`rotate(-90, ${offsetX - 80}, ${offsetY + profileHeight / 2})`}
+            >
+              Height: {profileData.profileHeight}mm
+            </text>
+          </>
+        )}
         
         {/* Profile type and specifications */}
         <text

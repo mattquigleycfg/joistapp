@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProfileForm } from '@/components/forms/profile-form';
 import { ExportForm } from '@/components/forms/export-form';
 import { VisualizationPanel } from '@/components/visualization/visualization-panel';
+import { PDFExportLayout } from '@/components/pdf-export-layout';
 import { useNCGenerator } from '@/hooks/use-nc-generator';
 import { ProfileData, ExportData } from '@/types/form-types';
 import { Download, Eye, List, Maximize2, FileText, Code } from 'lucide-react';
@@ -179,11 +180,11 @@ export function SpanPlusApp() {
     }
   }, [ncGenerator, generateCSV, exportData.programName]);
 
-  const tableRef = useRef<HTMLDivElement>(null);
+  const pdfExportRef = useRef<HTMLDivElement>(null);
 
   const handleExportPDF = useCallback(async () => {
-    if (!tableRef.current) {
-      toast.error('Cutting list not available');
+    if (!pdfExportRef.current) {
+      toast.error('PDF content not available');
       return;
     }
 
@@ -192,28 +193,49 @@ export function SpanPlusApp() {
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
 
-      // Capture the table as canvas
-      const canvas = await html2canvas(tableRef.current, { scale: 2 });
-      const imgData = canvas.toDataURL('image/png');
+      // Get the two page elements
+      const page1Element = pdfExportRef.current.querySelector('#page1-visualization') as HTMLElement;
+      const page2Element = pdfExportRef.current.querySelector('#page2-punch-table') as HTMLElement;
 
-      // Create PDF with landscape orientation
-      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-
-      // Calculate image dimensions to fit page while keeping aspect ratio
-      const imgProps = canvas.width / canvas.height;
-      let pdfWidth = pageWidth - 20; // margins
-      let pdfHeight = pdfWidth / imgProps;
-      if (pdfHeight > pageHeight - 20) {
-        pdfHeight = pageHeight - 20;
-        pdfWidth = pdfHeight * imgProps;
+      if (!page1Element || !page2Element) {
+        toast.error('PDF layout not found');
+        return;
       }
 
-      pdf.addImage(imgData, 'PNG', 10, 10, pdfWidth, pdfHeight);
-      pdf.save(`${exportData.programName || 'cutting_list'}.pdf`);
-      toast.success('Cutting list exported as PDF');
+      // Create PDF
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+      // Capture Page 1 (Landscape - Visualization)
+      const canvas1 = await html2canvas(page1Element, { scale: 2, backgroundColor: '#ffffff' });
+      const imgData1 = canvas1.toDataURL('image/png');
+      
+      const page1Width = 297;
+      const page1Height = 210;
+      pdf.addImage(imgData1, 'PNG', 0, 0, page1Width, page1Height);
+
+      // Add Page 2 (Portrait - Punch Table)
+      pdf.addPage('a4', 'portrait');
+      
+      const canvas2 = await html2canvas(page2Element, { scale: 2, backgroundColor: '#ffffff' });
+      const imgData2 = canvas2.toDataURL('image/png');
+      
+      const page2Width = 210;
+      const page2Height = 297;
+      
+      // Calculate dimensions to fit
+      const imgProps = canvas2.width / canvas2.height;
+      let pdfWidth = page2Width;
+      let pdfHeight = pdfWidth / imgProps;
+      
+      if (pdfHeight > page2Height) {
+        pdfHeight = page2Height;
+        pdfWidth = pdfHeight * imgProps;
+      }
+      
+      pdf.addImage(imgData2, 'PNG', 0, 0, pdfWidth, pdfHeight);
+
+      pdf.save(`${exportData.programName || 'nc_file'}.pdf`);
+      toast.success('PDF exported successfully');
     } catch (error) {
       console.error('PDF export error:', error);
       toast.error('Failed to export PDF');
@@ -427,27 +449,15 @@ export function SpanPlusApp() {
             />
           </div>
         </div>
-      {/* Hidden cutting-list table for PDF export */}
+      {/* Hidden PDF export layout */}
       {ncGenerator && (
-        <div className="absolute left-[-9999px] top-0" ref={tableRef} key={`pdf-export-${getUpdateVersion()}`}>
-          <VisualizationPanel
+        <div className="absolute left-[-9999px] top-0" ref={pdfExportRef} key={`pdf-export-${getUpdateVersion()}`}>
+          <PDFExportLayout
             profileData={profileData}
             ncGenerator={ncGenerator}
-            onPunchesUpdate={handleManualPunchesUpdate}
-            onProfileDataUpdate={(updates) => {
-              setProfileData(prev => ({ ...prev, ...updates }));
-            }}
+            exportData={exportData}
             updateVersion={getUpdateVersion()}
           />
-          <div className="mt-4">
-            <CuttingListTable
-              ncGenerator={ncGenerator}
-              partCode={ncGenerator.getPartCode()}
-              quantity={exportData.quantity}
-              length={profileData.length}
-              holeType={profileData.holeType}
-            />
-          </div>
         </div>
       )}
     </div>

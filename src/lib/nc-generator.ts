@@ -413,6 +413,29 @@ export class NCFileGenerator {
     // Generate coordinated holes to prevent clashes
     this.generateCoordinatedJoistHoles(length, holeType, punchStations);
 
+    // For joists, bolt holes are centered at web tab positions (no offset)
+    if (isBoltHoleEnabled) {
+      const webTabPositions = this.calculations.webHoles
+        .filter(w => w.active)
+        .map(w => w.position);
+      
+      webTabPositions.forEach(webPos => {
+        // Check if bolt hole already exists at this position
+        const existingBolt = this.calculations.boltHoles.some(bolt => 
+          Math.abs(bolt.position - webPos) < MANUFACTURING_CONSTANTS.POSITION_TOLERANCE
+        );
+        
+        // Add bolt hole centered at web tab position (no offset for joists)
+        if (!existingBolt && webPos > 50 && webPos < (length - 50)) {
+          this.calculations.boltHoles.push({ 
+            position: roundHalf(webPos), 
+            active: true, 
+            type: 'BOLT HOLE' 
+          });
+        }
+      });
+    }
+
     // Check if CORNER BRACKETS is enabled in punch stations
     const isCornerBracketsEnabled = !punchStations || punchStations.some(ps => ps.station === 'CORNER BRACKETS' && ps.enabled);
     
@@ -1055,17 +1078,13 @@ export class NCFileGenerator {
         this.calculations.webHoles.push({ position: roundHalf(pos), active: true, type: 'WEB TAB' });
       });
       
-      // Add bolt holes with alternating ±29.5mm offset for each web tab (if enabled)
+      // Add bolt holes centered at web tab positions (no offset for joists)
       if (isBoltHoleEnabled) {
-        webTabPositions.forEach((webPos, index) => {
-          // Alternate: even index = -29.5, odd index = +29.5
-          const offset = (index % 2 === 0) ? -29.5 : 29.5;
-          const boltPosition = webPos + offset;
-          
+        webTabPositions.forEach((webPos) => {
           // Only add if not overlapping with end bolts (> 50mm from ends)
-          if (boltPosition > 50 && boltPosition < (length - 50)) {
+          if (webPos > 50 && webPos < (length - 50)) {
             this.calculations.boltHoles.push({ 
-              position: roundHalf(boltPosition), 
+              position: roundHalf(webPos), 
               active: true, 
               type: 'BOLT HOLE' 
             });
