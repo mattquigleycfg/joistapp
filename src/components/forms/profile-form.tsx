@@ -33,6 +33,7 @@ const profileSchema = z.object({
   endBoxJoist: z.boolean().optional(),
   screensEnabled: z.boolean().optional(),
   kpaRating: z.enum(['2.5', '5.0']).optional(),
+  joistBox: z.boolean().optional(),
 });
 
 interface ProfileFormProps {
@@ -123,6 +124,22 @@ export const ProfileForm = React.memo(function ProfileForm({ data, onChange }: P
           } else {
             if (value.endBoxJoist) {
               form.setValue('endBoxJoist', false);
+            }
+          }
+        }
+        
+        // For Bearers: auto-update joistBox based on span table recommendation
+        if (value.profileType === 'Bearer Single' || value.profileType === 'Bearer Box') {
+          const shouldActivateJoistBox = recommendation.profileType === 'Joist Box';
+          
+          // Only update if the value differs and user hasn't manually overridden
+          if (value.joistBox !== shouldActivateJoistBox) {
+            form.setValue('joistBox', shouldActivateJoistBox);
+            
+            if (shouldActivateJoistBox) {
+              toast.info('Joist Box mode activated', {
+                description: 'Triple SERVICE punches at joist positions per span table'
+              });
             }
           }
         }
@@ -250,6 +267,31 @@ export const ProfileForm = React.memo(function ProfileForm({ data, onChange }: P
               </FormItem>
             )}
           />
+        )}
+
+        {/* Joist Box switch (Bearer only) */}
+        {isBearer && (
+          <div className="grid grid-cols-1 gap-3 rounded-lg border p-3 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5 flex-1 pr-4">
+                <span className="text-sm font-medium">Joist Box</span>
+                <p className="text-xs text-muted-foreground">
+                  Triple SERVICE punches at joist positions (suppresses web tabs)
+                </p>
+                {form.watch('kpaRating') && form.watch('joistLength') && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {form.watch('joistBox') ? '✓ Active per span table' : 'Auto-activates per span table'}
+                  </p>
+                )}
+              </div>
+              <div className="flex-shrink-0">
+                <Switch
+                  checked={form.watch('joistBox') || false}
+                  onCheckedChange={(value) => form.setValue('joistBox', !!value)}
+                />
+              </div>
+            </div>
+          </div>
         )}
 
         <FormField

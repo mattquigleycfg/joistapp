@@ -24,6 +24,8 @@ export interface ProfileData {
   screensEnabled?: boolean;
   // kPa rating: structural load rating (applies to joists only)
   kpaRating?: '2.5' | '5.0';
+  // Joist Box mode: for bearers, triple SERVICE punches at joist positions (suppresses web tabs)
+  joistBox?: boolean;
 }
 
 export interface ExportData {

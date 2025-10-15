@@ -221,6 +221,7 @@ export class NCFileGenerator {
         profileData.endBoxJoist,
         profileData.punchStations,
         screensEnabled,
+        profileData.joistBox,
       );
     } else {
       // In manual mode, preserve manual punches but update version to trigger re-renders
@@ -253,6 +254,7 @@ export class NCFileGenerator {
     endBox?: boolean,
     punchStations?: any[],
     screensEnabled?: boolean,
+    joistBox?: boolean,
   ) {
     // Clear existing holes
     this.calculations.boltHoles = [];
@@ -263,9 +265,9 @@ export class NCFileGenerator {
 
     if (isBearerProfile(profileType)) {
       if (screensEnabled) {
-        this.generateScreensBearerHoles(length, joistSpacing, holeType, stubPositions, stubsEnabled, punchStations);
+        this.generateScreensBearerHoles(length, joistSpacing, holeType, stubPositions, stubsEnabled, punchStations, joistBox);
       } else {
-        this.generateBearerHoles(length, joistSpacing, holeType, stubPositions, stubsEnabled, punchStations);
+        this.generateBearerHoles(length, joistSpacing, holeType, stubPositions, stubsEnabled, punchStations, joistBox);
       }
     } else {
       // For Joist Single and Joist Box
@@ -285,9 +287,11 @@ export class NCFileGenerator {
     stubPositions?: number[],
     stubsEnabled?: boolean,
     punchStations?: PunchStationConfig[],
+    joistBox?: boolean,
   ) {
     // Check if punch types are enabled
     const isBoltHoleEnabled = !punchStations || punchStations.some(ps => ps.station === 'BOLT HOLE' && ps.enabled);
+    const isServiceEnabled = !punchStations || punchStations.some(ps => ps.station === 'SERVICE' && ps.enabled);
     
     // End bolt holes: always at 30 mm from ends (if enabled)
     if (isBoltHoleEnabled) {
@@ -305,54 +309,85 @@ export class NCFileGenerator {
       }
     }
 
-    // Generate coordinated holes to prevent clashes
-    this.generateCoordinatedBearerHoles(length, joistSpacing, holeType, punchStations);
-    
-    // After web tabs are generated, add corresponding bolt holes (if bolt holes are enabled)
-    // Bolt holes should be offset ±29.5mm from web tab positions (alternating pattern)
-    if (isBoltHoleEnabled) {
-      // Sort web tabs by position for consistent alternating pattern
-      const sortedWebTabs = this.calculations.webHoles
-        .filter(w => w.active)
-        .sort((a, b) => a.position - b.position);
+    // JOIST BOX MODE: Triple SERVICE punches at joist positions, suppresses web tabs
+    if (joistBox && isServiceEnabled) {
+      // Calculate joist positions starting from first joist spacing
+      const startOffset = joistSpacing;
+      const endOffset = length - joistSpacing;
       
-      sortedWebTabs.forEach((webTab, index) => {
-        // Alternate: even index (0,2,4...) = -29.5, odd index (1,3,5...) = +29.5
-        const offset = calculateBoltOffset(index);
-        const expectedBoltPosition = webTab.position + offset;
+      // Generate joist positions
+      let currentPos = startOffset;
+      while (currentPos <= endOffset) {
+        // Triple SERVICE hits: center, +12mm, -12mm
+        this.calculations.stubs.push({ position: roundHalf(currentPos - 12), active: true, type: 'SERVICE' });
+        this.calculations.stubs.push({ position: roundHalf(currentPos), active: true, type: 'SERVICE' });
+        this.calculations.stubs.push({ position: roundHalf(currentPos + 12), active: true, type: 'SERVICE' });
         
-        // Check if a bolt hole already exists near this position (within tolerance)
-        const existingBolt = this.calculations.boltHoles.some(bolt => 
-          Math.abs(bolt.position - expectedBoltPosition) < MANUFACTURING_CONSTANTS.POSITION_TOLERANCE
-        );
-        
-        // Only add if not too close to ends (avoid overlap with end bolt holes)
-        if (!existingBolt && expectedBoltPosition > MANUFACTURING_CONSTANTS.MIN_CLEARANCE && expectedBoltPosition < (length - MANUFACTURING_CONSTANTS.MIN_CLEARANCE)) {
+        // Bolt hole at exact joist position (centered, no offset) if enabled
+        if (isBoltHoleEnabled && currentPos > MANUFACTURING_CONSTANTS.MIN_CLEARANCE && currentPos < (length - MANUFACTURING_CONSTANTS.MIN_CLEARANCE)) {
           this.calculations.boltHoles.push({ 
-            position: roundHalf(expectedBoltPosition), 
+            position: roundHalf(currentPos), 
             active: true, 
             type: 'BOLT HOLE' 
           });
         }
-      });
-    }
-
-    // Check if SERVICE is enabled in punch stations  
-    const isServiceEnabled = !punchStations || punchStations.some(ps => ps.station === 'SERVICE' && ps.enabled);
-    
-    if (isServiceEnabled) {
+        
+        currentPos += joistSpacing;
+      }
+      
       // Corner brackets - always at 131mm from ends for bearers
       this.calculations.stubs.push({ position: 131, active: true, type: 'SERVICE' });
       this.calculations.stubs.push({ position: length - 131, active: true, type: 'SERVICE' });
       
-      // Service stubs - using calculated positions from stubPositions
-      if (stubPositions && stubPositions.length) {
-        stubPositions.forEach((pos) => {
-          // Add all stub positions (they should include 331, length-331, and intermediate positions)
-          if (pos > 0 && pos < length) {
-            this.calculations.stubs.push({ position: pos, active: true, type: 'SERVICE' });
+      // In joistBox mode, web tabs are suppressed - skip generateCoordinatedBearerHoles
+    } else {
+      // NORMAL MODE: Generate coordinated holes (web tabs and service holes)
+      this.generateCoordinatedBearerHoles(length, joistSpacing, holeType, punchStations);
+      
+      // After web tabs are generated, add corresponding bolt holes (if bolt holes are enabled)
+      // Bolt holes should be offset ±29.5mm from web tab positions (alternating pattern)
+      if (isBoltHoleEnabled) {
+        // Sort web tabs by position for consistent alternating pattern
+        const sortedWebTabs = this.calculations.webHoles
+          .filter(w => w.active)
+          .sort((a, b) => a.position - b.position);
+        
+        sortedWebTabs.forEach((webTab, index) => {
+          // Alternate: even index (0,2,4...) = -29.5, odd index (1,3,5...) = +29.5
+          const offset = calculateBoltOffset(index);
+          const expectedBoltPosition = webTab.position + offset;
+          
+          // Check if a bolt hole already exists near this position (within tolerance)
+          const existingBolt = this.calculations.boltHoles.some(bolt => 
+            Math.abs(bolt.position - expectedBoltPosition) < MANUFACTURING_CONSTANTS.POSITION_TOLERANCE
+          );
+          
+          // Only add if not too close to ends (avoid overlap with end bolt holes)
+          if (!existingBolt && expectedBoltPosition > MANUFACTURING_CONSTANTS.MIN_CLEARANCE && expectedBoltPosition < (length - MANUFACTURING_CONSTANTS.MIN_CLEARANCE)) {
+            this.calculations.boltHoles.push({ 
+              position: roundHalf(expectedBoltPosition), 
+              active: true, 
+              type: 'BOLT HOLE' 
+            });
           }
         });
+      }
+
+      // SERVICE punches for normal mode
+      if (isServiceEnabled) {
+        // Corner brackets - always at 131mm from ends for bearers
+        this.calculations.stubs.push({ position: 131, active: true, type: 'SERVICE' });
+        this.calculations.stubs.push({ position: length - 131, active: true, type: 'SERVICE' });
+        
+        // Service stubs - using calculated positions from stubPositions
+        if (stubPositions && stubPositions.length) {
+          stubPositions.forEach((pos) => {
+            // Add all stub positions (they should include 331, length-331, and intermediate positions)
+            if (pos > 0 && pos < length) {
+              this.calculations.stubs.push({ position: pos, active: true, type: 'SERVICE' });
+            }
+          });
+        }
       }
     }
   }
@@ -808,6 +843,7 @@ export class NCFileGenerator {
     stubPositions?: number[],
     stubsEnabled?: boolean,
     punchStations?: any[],
+    joistBox?: boolean,
   ) {
     // Check if punch types are enabled
     const isBoltHoleEnabled = !punchStations || punchStations.some(ps => ps.station === 'BOLT HOLE' && ps.enabled);
@@ -816,6 +852,7 @@ export class NCFileGenerator {
     const isServiceHoleEnabled = !punchStations || punchStations.some(ps => 
       (ps.station === 'M SERVICE HOLE' || ps.station === 'SMALL SERVICE HOLE') && ps.enabled
     );
+    const isServiceEnabled = !punchStations || punchStations.some(ps => ps.station === 'SERVICE' && ps.enabled);
     
     // End bolt holes at 30mm from ends (if enabled)
     if (isBoltHoleEnabled) {
@@ -830,55 +867,115 @@ export class NCFileGenerator {
       }
     }
 
-    // SCREENS MODE: Web tabs at specific positions
-    if (isWebTabEnabled) {
-      // First web tab at 475mm
+    // JOIST BOX MODE: Triple SERVICE punches at joist positions, suppresses web tabs
+    if (joistBox && isServiceEnabled) {
+      // In screens mode with joistBox, use screens positioning (475mm from ends)
       const firstWebTab = 475;
-      // Last web tab at length - 475mm
       const lastWebTab = length - 475;
-      // Working length for intermediate tabs
       const workingLength = lastWebTab - firstWebTab;
       
-      // Collect web tab positions
-      const webTabPositions: number[] = [firstWebTab];
+      // Collect joist positions (similar to screens web tab logic)
+      const joistPositions: number[] = [firstWebTab];
       
-      // Generate intermediate web tabs spaced by joistSpacing
       if (workingLength > 0) {
         let currentPos = firstWebTab + joistSpacing;
         while (currentPos < lastWebTab) {
-          webTabPositions.push(currentPos);
+          joistPositions.push(currentPos);
           currentPos += joistSpacing;
         }
       }
       
-      // Add last web tab
-      webTabPositions.push(lastWebTab);
+      joistPositions.push(lastWebTab);
       
-      // Create web tabs
-      webTabPositions.forEach(pos => {
-        this.calculations.webHoles.push({ position: roundHalf(pos), active: true, type: 'WEB TAB' });
+      // Generate triple SERVICE hits at each joist position
+      joistPositions.forEach(pos => {
+        this.calculations.stubs.push({ position: roundHalf(pos - 12), active: true, type: 'SERVICE' });
+        this.calculations.stubs.push({ position: roundHalf(pos), active: true, type: 'SERVICE' });
+        this.calculations.stubs.push({ position: roundHalf(pos + 12), active: true, type: 'SERVICE' });
+        
+        // Bolt hole at exact joist position (centered, no offset) if enabled
+        if (isBoltHoleEnabled && pos > 50 && pos < (length - 50)) {
+          this.calculations.boltHoles.push({ 
+            position: roundHalf(pos), 
+            active: true, 
+            type: 'BOLT HOLE' 
+          });
+        }
       });
       
-      // Add bolt holes with alternating ±29.5mm offset for each web tab (if enabled)
-      if (isBoltHoleEnabled) {
-        webTabPositions.forEach((webPos, index) => {
-          // Alternate: even index = -29.5, odd index = +29.5
-          const offset = (index % 2 === 0) ? -29.5 : 29.5;
-          const boltPosition = webPos + offset;
-          
-          // Only add if not overlapping with end bolts (> 50mm from ends)
-          if (boltPosition > 50 && boltPosition < (length - 50)) {
-            this.calculations.boltHoles.push({ 
-              position: roundHalf(boltPosition), 
-              active: true, 
-              type: 'BOLT HOLE' 
-            });
+      // Corner brackets
+      this.calculations.stubs.push({ position: 131, active: true, type: 'SERVICE' });
+      this.calculations.stubs.push({ position: length - 131, active: true, type: 'SERVICE' });
+      
+      // Web tabs are suppressed in joistBox mode
+    } else {
+      // NORMAL SCREENS MODE: Web tabs at specific positions
+      if (isWebTabEnabled) {
+        // First web tab at 475mm
+        const firstWebTab = 475;
+        // Last web tab at length - 475mm
+        const lastWebTab = length - 475;
+        // Working length for intermediate tabs
+        const workingLength = lastWebTab - firstWebTab;
+        
+        // Collect web tab positions
+        const webTabPositions: number[] = [firstWebTab];
+        
+        // Generate intermediate web tabs spaced by joistSpacing
+        if (workingLength > 0) {
+          let currentPos = firstWebTab + joistSpacing;
+          while (currentPos < lastWebTab) {
+            webTabPositions.push(currentPos);
+            currentPos += joistSpacing;
+          }
+        }
+        
+        // Add last web tab
+        webTabPositions.push(lastWebTab);
+        
+        // Create web tabs
+        webTabPositions.forEach(pos => {
+          this.calculations.webHoles.push({ position: roundHalf(pos), active: true, type: 'WEB TAB' });
+        });
+        
+        // Add bolt holes with alternating ±29.5mm offset for each web tab (if enabled)
+        if (isBoltHoleEnabled) {
+          webTabPositions.forEach((webPos, index) => {
+            // Alternate: even index = -29.5, odd index = +29.5
+            const offset = (index % 2 === 0) ? -29.5 : 29.5;
+            const boltPosition = webPos + offset;
+            
+            // Only add if not overlapping with end bolts (> 50mm from ends)
+            if (boltPosition > 50 && boltPosition < (length - 50)) {
+              this.calculations.boltHoles.push({ 
+                position: roundHalf(boltPosition), 
+                active: true, 
+                type: 'BOLT HOLE' 
+              });
+            }
+          });
+        }
+      }
+
+      // Stubs: same logic as normal bearer
+      if (stubsEnabled && stubPositions && stubPositions.length) {
+        stubPositions.forEach((pos) => {
+          if (pos > 0 && pos < length - 400) {
+            this.calculations.stubs.push({ position: pos, active: true, type: 'SERVICE' });
+          }
+        });
+      }
+      if (stubsEnabled) {
+        const bracketPositions = [131, length - 131, 331, length - 331];
+        bracketPositions.forEach((pos) => {
+          if (pos > 0 && pos < length) {
+            this.calculations.stubs.push({ position: pos, active: true, type: 'SERVICE' });
           }
         });
       }
     }
 
-    // Service holes: follow normal bearer logic if enabled
+    // Service holes: follow normal bearer logic if enabled (not affected by joistBox)
     if (holeType !== 'No Holes' && isServiceHoleEnabled) {
       const serviceHoleSpacing = this.calculations.openingCentres; // 650mm
       const startPos = serviceHoleSpacing;
@@ -895,23 +992,6 @@ export class NCFileGenerator {
           this.calculations.serviceHoles.push({ position: roundHalf(position), active: true, type: 'M SERVICE HOLE' });
         }
       }
-    }
-
-    // Stubs: same logic as normal bearer
-    if (stubsEnabled && stubPositions && stubPositions.length) {
-      stubPositions.forEach((pos) => {
-        if (pos > 0 && pos < length - 400) {
-          this.calculations.stubs.push({ position: pos, active: true, type: 'SERVICE' });
-        }
-      });
-    }
-    if (stubsEnabled) {
-      const bracketPositions = [131, length - 131, 331, length - 331];
-      bracketPositions.forEach((pos) => {
-        if (pos > 0 && pos < length) {
-          this.calculations.stubs.push({ position: pos, active: true, type: 'SERVICE' });
-        }
-      });
     }
   }
 

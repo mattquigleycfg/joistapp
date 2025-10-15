@@ -79,6 +79,7 @@ export function SpanPlusApp() {
     endBoxJoist: false,
     screensEnabled: false,
     kpaRating: '2.5',
+    joistBox: false,
   });
 
   const [exportData, setExportData] = useState<ExportData>({
@@ -105,6 +106,7 @@ export function SpanPlusApp() {
       endBoxJoist: false,
       screensEnabled: false,
       kpaRating: '2.5',
+      joistBox: false,
     })
   });
 
