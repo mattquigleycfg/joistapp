@@ -527,78 +527,115 @@ export class NCFileGenerator {
   }
 
   private generateWebTabsBetweenServiceHoles(servicePositions: number[], minWebTabSpacing: number, maxWebTabSpacing: number) {
-    // console.log('generateWebTabsBetweenServiceHoles called:', { servicePositions, minWebTabSpacing, maxWebTabSpacing });
-    
     if (servicePositions.length === 0) {
-      // console.log('No service positions, returning');
       return;
     }
     
-    // For joists: Place web tabs (lateral bracing) at proper 1200-1800mm spacing
-    // Service holes: 200mm diameter, Web tabs: 40mm wide
-    // Minimum clearance: 120mm from service hole center (100mm radius + 20mm web tab half-width)
+    // For joists: Place web tabs (lateral bracing) at proper 1200-2400mm spacing
+    // Service holes: 200mm diameter at 650mm spacing, Web tabs: 40mm wide
+    // Safe clearance: 150mm from service hole center (100mm radius + 20mm web tab half-width + 30mm safety margin)
     const startPos = servicePositions[0];
     const endPos = servicePositions[servicePositions.length - 1];
     const availableLength = endPos - startPos;
     
-    const minClearance = 120; // 100mm service hole radius + 20mm web tab half-width
-    
-    // console.log('Span calculation:', { startPos, endPos, availableLength });
+    const minClearance = 150; // 100mm service hole radius + 20mm web tab half-width + 30mm safety margin
     
     // If span is too small, don't add web tabs
     if (availableLength < minWebTabSpacing) {
-      // console.log('Available length too small, returning');
       return;
     }
     
-    // Calculate optimal number of web tabs to stay within spacing constraints
+    // Calculate how many web tabs we need based on MAX spacing (2400mm)
+    // This ensures we don't exceed the maximum allowed spacing
     const minWebTabs = Math.ceil(availableLength / maxWebTabSpacing);
-    const numWebTabs = Math.max(1, minWebTabs);
     
-    // console.log('Web tabs to generate:', { minWebTabs, numWebTabs });
+    // Calculate ideal even spacing for web tabs
+    const idealSpacing = availableLength / (minWebTabs + 1);
     
-    // Calculate actual spacing (will be between minSpacing and maxSpacing)
-    const actualSpacing = availableLength / (numWebTabs + 1);
+    const webTabPositions: number[] = [];
     
-    // console.log('actualSpacing:', actualSpacing);
-    
-    // Generate web tabs, shifting them if they conflict with service holes
-    for (let i = 1; i <= numWebTabs; i++) {
-      const idealPosition = startPos + (i * actualSpacing);
+    // Generate web tabs at ideal spacing, adjusting for service holes
+    for (let i = 1; i <= minWebTabs; i++) {
+      const idealPosition = startPos + (i * idealSpacing);
       
-      // Check if this position conflicts with any service hole
-      const conflictingHole = servicePositions.find(servicePos => 
-        Math.abs(idealPosition - servicePos) < minClearance
+      // Check clearance from all service holes
+      const hasClearance = servicePositions.every(servicePos => 
+        Math.abs(idealPosition - servicePos) >= minClearance
       );
       
-      let finalPosition = idealPosition;
-      
-      if (conflictingHole !== undefined) {
-        // Conflict detected - shift web tab to nearest safe position
-        // Try shifting to the right first (after the service hole)
-        const shiftedRight = conflictingHole + minClearance;
-        const shiftedLeft = conflictingHole - minClearance;
-        
-        // Choose the shift that's closest to the ideal position and within bounds
-        if (shiftedRight <= endPos && Math.abs(shiftedRight - idealPosition) <= Math.abs(shiftedLeft - idealPosition)) {
-          finalPosition = shiftedRight;
-          // console.log(`Web tab ${i}: shifted from ${idealPosition} to ${shiftedRight} (right of service hole at ${conflictingHole})`);
-        } else if (shiftedLeft >= startPos) {
-          finalPosition = shiftedLeft;
-          // console.log(`Web tab ${i}: shifted from ${idealPosition} to ${shiftedLeft} (left of service hole at ${conflictingHole})`);
-        } else {
-          // console.log(`Web tab ${i}: cannot place safely, skipping`);
-          continue;
-        }
+      if (hasClearance) {
+        // Ideal position is safe - use it
+        webTabPositions.push(idealPosition);
       } else {
-        // console.log(`Web tab ${i}: no conflict at position ${idealPosition}`);
+        // Position conflicts with service hole - need to adjust
+        
+        // Find the nearest service hole causing the conflict
+        const conflictingHole = servicePositions.reduce((nearest, servicePos) => {
+          const currentDist = Math.abs(idealPosition - servicePos);
+          const nearestDist = Math.abs(idealPosition - nearest);
+          return currentDist < nearestDist ? servicePos : nearest;
+        });
+        
+        // Try to center between service holes near the ideal position
+        let bestPosition: number | null = null;
+        let bestScore = Infinity; // Lower is better (closer to ideal)
+        
+        // Check gaps between adjacent service holes
+        for (let j = 0; j < servicePositions.length - 1; j++) {
+          const leftService = servicePositions[j];
+          const rightService = servicePositions[j + 1];
+          const gapCenter = (leftService + rightService) / 2;
+          
+          // Check if this gap center is safe and reasonably close to ideal position
+          const clearanceFromLeft = gapCenter - leftService;
+          const clearanceFromRight = rightService - gapCenter;
+          
+          if (clearanceFromLeft >= minClearance && clearanceFromRight >= minClearance) {
+            const distanceFromIdeal = Math.abs(gapCenter - idealPosition);
+            
+            // Only consider if within reasonable range (within 1 service hole spacing)
+            if (distanceFromIdeal < 650 && distanceFromIdeal < bestScore) {
+              // Check it's not too close to existing web tabs
+              const tooClose = webTabPositions.some(pos => Math.abs(pos - gapCenter) < minWebTabSpacing * 0.8);
+              if (!tooClose) {
+                bestPosition = gapCenter;
+                bestScore = distanceFromIdeal;
+              }
+            }
+          }
+        }
+        
+        // If centered position found, use it
+        if (bestPosition !== null) {
+          webTabPositions.push(bestPosition);
+        } else {
+          // Fallback: Try shifting left or right of conflicting hole
+          const shiftedRight = conflictingHole + minClearance;
+          const shiftedLeft = conflictingHole - minClearance;
+          
+          const rightHasClearance = shiftedRight <= endPos && 
+            servicePositions.every(sp => Math.abs(shiftedRight - sp) >= minClearance) &&
+            !webTabPositions.some(pos => Math.abs(pos - shiftedRight) < minWebTabSpacing * 0.8);
+          
+          const leftHasClearance = shiftedLeft >= startPos && 
+            servicePositions.every(sp => Math.abs(shiftedLeft - sp) >= minClearance) &&
+            !webTabPositions.some(pos => Math.abs(pos - shiftedLeft) < minWebTabSpacing * 0.8);
+          
+          // Choose the shift closest to ideal position
+          if (rightHasClearance && (!leftHasClearance || Math.abs(shiftedRight - idealPosition) <= Math.abs(shiftedLeft - idealPosition))) {
+            webTabPositions.push(shiftedRight);
+          } else if (leftHasClearance) {
+            webTabPositions.push(shiftedLeft);
+          }
+          // If neither works, skip this web tab (acceptable if spacing requirements still met)
+        }
       }
-      
-      this.calculations.webHoles.push({ position: roundHalf(finalPosition), active: true, type: 'WEB TAB' });
-      // console.log(`Added web tab at ${roundHalf(finalPosition)}`);
     }
     
-    // console.log('Final webHoles count:', this.calculations.webHoles.length);
+    // Add all positioned web tabs to calculations
+    webTabPositions.forEach(pos => {
+      this.calculations.webHoles.push({ position: roundHalf(pos), active: true, type: 'WEB TAB' });
+    });
   }
 
   private generateJoistWebTabs(startPos: number, endPos: number, minSpacing: number, maxSpacing: number) {
