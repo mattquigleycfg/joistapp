@@ -163,13 +163,13 @@ export function detectClashes(
         requiredDistance = 145;
         serviceType = 'M SERVICE HOLE (Ø200mm)';
       } else if (service.type === 'LARGE SERVICE HOLE') {
-        // LARGE SERVICE HOLE (200×400mm): 45mm/2 + 200mm + 22.5mm buffer = 245mm
+        // LARGE SERVICE HOLE (400×200mm): 45mm/2 + 200mm + 22.5mm buffer = 245mm
         requiredDistance = 245;
-        serviceType = 'LARGE SERVICE HOLE (200×400mm)';
+        serviceType = 'LARGE SERVICE HOLE (400×200mm)';
       } else if (service.type === 'SMALL SERVICE HOLE') {
-        // SMALL SERVICE HOLE (Ø110mm): 45mm/2 + 55mm + 22.5mm buffer = 100mm
-        requiredDistance = 100;
-        serviceType = 'SMALL SERVICE HOLE (Ø110mm)';
+        // SMALL SERVICE HOLE (Ø115mm): 45mm/2 + 57.5mm + 22.5mm buffer = 102.5mm
+        requiredDistance = 102.5;
+        serviceType = 'SMALL SERVICE HOLE (Ø115mm)';
       } else {
         // Generic service hole
         const serviceRadius = getClearanceDistance(service.type);

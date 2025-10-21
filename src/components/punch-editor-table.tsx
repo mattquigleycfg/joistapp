@@ -36,7 +36,7 @@ import {
 import { cn } from '@/lib/utils';
 import { NCFileGenerator } from '@/lib/nc-generator';
 
-export type PunchType = 'BOLT HOLE' | 'DIMPLE' | 'WEB TAB' | 'M SERVICE HOLE' | 'SMALL SERVICE HOLE' | 'SERVICE' | 'CORNER BRACKETS';
+export type PunchType = 'BOLT HOLE' | 'DIMPLE' | 'WEB TAB' | 'M SERVICE HOLE' | 'SMALL SERVICE HOLE' | 'LARGE SERVICE HOLE' | 'SERVICE' | 'CORNER BRACKETS';
 
 export interface Punch {
   id: string;
@@ -62,6 +62,7 @@ const punchColors: Record<PunchType, string> = {
   'WEB TAB': 'bg-green-500',
   'M SERVICE HOLE': 'bg-blue-500',
   'SMALL SERVICE HOLE': 'bg-cyan-500',
+  'LARGE SERVICE HOLE': 'bg-indigo-500',
   'SERVICE': 'bg-purple-500',
   'CORNER BRACKETS': 'bg-orange-500',
 };
@@ -72,6 +73,7 @@ const punchBadgeColors: Record<PunchType, string> = {
   'WEB TAB': 'bg-green-100 text-green-800 border-green-300',
   'M SERVICE HOLE': 'bg-blue-100 text-blue-800 border-blue-300',
   'SMALL SERVICE HOLE': 'bg-cyan-100 text-cyan-800 border-cyan-300',
+  'LARGE SERVICE HOLE': 'bg-indigo-100 text-indigo-800 border-indigo-300',
   'SERVICE': 'bg-purple-100 text-purple-800 border-purple-300',
   'CORNER BRACKETS': 'bg-orange-100 text-orange-800 border-orange-300',
 };
@@ -103,6 +105,7 @@ export function PunchEditorTable({
     'WEB TAB': true,
     'M SERVICE HOLE': true,
     'SMALL SERVICE HOLE': true,
+    'LARGE SERVICE HOLE': true,
     'SERVICE': true,
     'CORNER BRACKETS': true,
   });
@@ -116,6 +119,7 @@ export function PunchEditorTable({
         'WEB TAB': true,
         'M SERVICE HOLE': true,
         'SMALL SERVICE HOLE': true,
+        'LARGE SERVICE HOLE': true,
         'SERVICE': true,
         'CORNER BRACKETS': true,
       };
@@ -163,7 +167,17 @@ export function PunchEditorTable({
     collectPunches(calcs.boltHoles, 'BOLT HOLE');
     collectPunches(calcs.dimples, 'DIMPLE');
     collectPunches(calcs.webHoles, 'WEB TAB');
-    collectPunches(calcs.serviceHoles, calcs.serviceHoles[0]?.type === 'SMALL SERVICE HOLE' ? 'SMALL SERVICE HOLE' : 'M SERVICE HOLE');
+    // Service holes can be of different types, so collect them individually by their actual type
+    calcs.serviceHoles.forEach((h) => {
+      if (h.active) {
+        allPunches.push({
+          id: `${h.type}-${h.position}`,
+          position: h.position,
+          type: h.type as PunchType,
+          active: true,
+        });
+      }
+    });
     
     // Separate corner brackets from service stubs by type
     const cornerBrackets = calcs.stubs.filter(s => s.type === 'CORNER BRACKETS');
@@ -386,6 +400,7 @@ export function PunchEditorTable({
     'SERVICE',
     'M SERVICE HOLE',
     'SMALL SERVICE HOLE',
+    'LARGE SERVICE HOLE',
     'DIMPLE'
   ];
 

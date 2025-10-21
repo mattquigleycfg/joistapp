@@ -60,6 +60,7 @@ export class NCFileGenerator {
           break;
         case 'M SERVICE HOLE':
         case 'SMALL SERVICE HOLE':
+        case 'LARGE SERVICE HOLE':
           this.calculations.serviceHoles.push(punchData);
           break;
         case 'DIMPLE':
@@ -236,11 +237,26 @@ export class NCFileGenerator {
       case '200 Round': return 200;
       case '110 Round': return 110;
       case '200mm x 400mm':
-      case '200 x 400 Oval': return 200;
+      case '200 x 400 Oval': return 400; // Use width (400mm) for oval holes
       case '115 Round':
       case '115mm':
         return 115;
       default: return MANUFACTURING_CONSTANTS.DEFAULT_HOLE_DIAMETER;
+    }
+  }
+
+  private getServiceHoleType(holeType: string): PunchStationType {
+    switch (holeType) {
+      case '115 Round':
+      case '115mm':
+        return 'SMALL SERVICE HOLE';
+      case '200mm x 400mm':
+      case '200 x 400 Oval':
+        return 'LARGE SERVICE HOLE';
+      case '200mm':
+      case '200 Round':
+      default:
+        return 'M SERVICE HOLE';
     }
   }
 
@@ -450,7 +466,7 @@ export class NCFileGenerator {
     // Check if punch types are enabled
     const isWebTabEnabled = !punchStations || punchStations.some(ps => ps.station === 'WEB TAB' && ps.enabled);
     const isServiceHoleEnabled = !punchStations || punchStations.some(ps => 
-      (ps.station === 'M SERVICE HOLE' || ps.station === 'SMALL SERVICE HOLE') && ps.enabled
+      (ps.station === 'M SERVICE HOLE' || ps.station === 'SMALL SERVICE HOLE' || ps.station === 'LARGE SERVICE HOLE') && ps.enabled
     );
     
     
@@ -476,7 +492,8 @@ export class NCFileGenerator {
         serviceHoleSpacing,
         minWebTabSpacing,
         maxWebTabSpacing,
-        punchStations
+        punchStations,
+        holeType
       );
     } else if (isWebTabEnabled) {
       // No service holes, generate web tabs with minimum spacing (if enabled)
@@ -497,7 +514,8 @@ export class NCFileGenerator {
     serviceHoleSpacing: number,
     minWebTabSpacing: number,
     maxWebTabSpacing: number,
-    punchStations?: any[]
+    punchStations?: any[],
+    holeType?: string
   ) {
     // Check if web tabs are enabled
     const isWebTabEnabled = !punchStations || punchStations.some(ps => ps.station === 'WEB TAB' && ps.enabled);
@@ -514,10 +532,11 @@ export class NCFileGenerator {
     const serviceStart = startPos + (availableLength - totalServiceSpan) / 2;
     
     const servicePositions: number[] = [];
+    const serviceHoleType = this.getServiceHoleType(holeType || '200mm');
     for (let i = 0; i < maxServiceHoles; i++) {
       const position = serviceStart + (i * serviceHoleSpacing);
       servicePositions.push(roundHalf(position));
-      this.calculations.serviceHoles.push({ position: roundHalf(position), active: true, type: 'M SERVICE HOLE' });
+      this.calculations.serviceHoles.push({ position: roundHalf(position), active: true, type: serviceHoleType });
     }
     
     // Generate web tabs between service holes with minimum spacing (if enabled)
@@ -825,7 +844,7 @@ export class NCFileGenerator {
     // Check if punch types are enabled
     const isWebTabEnabled = !punchStations || punchStations.some(ps => ps.station === 'WEB TAB' && ps.enabled);
     const isServiceHoleEnabled = !punchStations || punchStations.some(ps => 
-      (ps.station === 'M SERVICE HOLE' || ps.station === 'SMALL SERVICE HOLE') && ps.enabled
+      (ps.station === 'M SERVICE HOLE' || ps.station === 'SMALL SERVICE HOLE' || ps.station === 'LARGE SERVICE HOLE') && ps.enabled
     );
     
     // TODO: Remove // console.log for production
@@ -843,10 +862,11 @@ export class NCFileGenerator {
         // Generate service holes symmetrically
         const totalServiceSpan = (maxServiceHoles - 1) * serviceHoleSpacing;
         const serviceStart = serviceHoleSpacing + (availableLength - totalServiceSpan) / 2;
+        const serviceHoleType = this.getServiceHoleType(holeType);
         
         for (let i = 0; i < maxServiceHoles; i++) {
           const position = serviceStart + (i * serviceHoleSpacing);
-          this.calculations.serviceHoles.push({ position: roundHalf(position), active: true, type: 'M SERVICE HOLE' });
+          this.calculations.serviceHoles.push({ position: roundHalf(position), active: true, type: serviceHoleType });
         }
       }
     }
@@ -910,7 +930,7 @@ export class NCFileGenerator {
     const isWebTabEnabled = !punchStations || punchStations.some(ps => ps.station === 'WEB TAB' && ps.enabled);
     const isDimpleEnabled = !punchStations || punchStations.some(ps => ps.station === 'DIMPLE' && ps.enabled);
     const isServiceHoleEnabled = !punchStations || punchStations.some(ps => 
-      (ps.station === 'M SERVICE HOLE' || ps.station === 'SMALL SERVICE HOLE') && ps.enabled
+      (ps.station === 'M SERVICE HOLE' || ps.station === 'SMALL SERVICE HOLE' || ps.station === 'LARGE SERVICE HOLE') && ps.enabled
     );
     const isServiceEnabled = !punchStations || punchStations.some(ps => ps.station === 'SERVICE' && ps.enabled);
     
@@ -1046,10 +1066,11 @@ export class NCFileGenerator {
       if (maxServiceHoles >= 1) {
         const totalServiceSpan = (maxServiceHoles - 1) * serviceHoleSpacing;
         const serviceStart = startPos + (availableLength - totalServiceSpan) / 2;
+        const serviceHoleType = this.getServiceHoleType(holeType);
         
         for (let i = 0; i < maxServiceHoles; i++) {
           const position = serviceStart + (i * serviceHoleSpacing);
-          this.calculations.serviceHoles.push({ position: roundHalf(position), active: true, type: 'M SERVICE HOLE' });
+          this.calculations.serviceHoles.push({ position: roundHalf(position), active: true, type: serviceHoleType });
         }
       }
     }
@@ -1067,7 +1088,7 @@ export class NCFileGenerator {
     const isDimpleEnabled = !punchStations || punchStations.some(ps => ps.station === 'DIMPLE' && ps.enabled);
     const isWebTabEnabled = !punchStations || punchStations.some(ps => ps.station === 'WEB TAB' && ps.enabled);
     const isServiceHoleEnabled = !punchStations || punchStations.some(ps => 
-      (ps.station === 'M SERVICE HOLE' || ps.station === 'SMALL SERVICE HOLE') && ps.enabled
+      (ps.station === 'M SERVICE HOLE' || ps.station === 'SMALL SERVICE HOLE' || ps.station === 'LARGE SERVICE HOLE') && ps.enabled
     );
     
     // End bolt holes at 30mm from ends (if enabled)
@@ -1137,6 +1158,7 @@ export class NCFileGenerator {
         .sort((a, b) => a - b);
       
       const serviceHoleSpacing = 650;
+      const serviceHoleType = this.getServiceHoleType(holeType);
       
       // Generate service holes between each pair of web tabs
       for (let i = 0; i < webTabPositions.length - 1; i++) {
@@ -1157,7 +1179,7 @@ export class NCFileGenerator {
             this.calculations.serviceHoles.push({ 
               position: roundHalf(position), 
               active: true, 
-              type: 'M SERVICE HOLE' 
+              type: serviceHoleType 
             });
           }
         }

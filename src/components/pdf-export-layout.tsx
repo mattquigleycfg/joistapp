@@ -34,8 +34,10 @@ const renderVisualizationSVG = (profileData: ProfileData, ncGenerator: NCFileGen
   const bottomBoltY = offsetY + profileHeight + flangeHeight / 2;
   
   const getHoleDiameter = (holeType: string) => {
-    const actualDiameter = holeType.includes('200') ? 200 : 
+    const actualDiameter = holeType.includes('400') ? 400 : // For oval 400x200
+                          holeType.includes('200') ? 200 : 
                           holeType.includes('150') ? 150 : 
+                          holeType.includes('115') ? 115 : 
                           holeType.includes('110') ? 110 : 50;
     return Math.max(actualDiameter * baseScale, 3);
   };
@@ -282,7 +284,8 @@ export function PDFExportLayout({ profileData, ncGenerator, exportData, updateVe
   });
   
   calculations.serviceHoles?.filter(h => h.active).forEach(h => {
-    const type = h.type === 'SMALL SERVICE HOLE' ? 'SMALL SERVICE HOLE' : 'M SERVICE HOLE';
+    // Service holes now preserve their actual type (M SERVICE HOLE, SMALL SERVICE HOLE, or LARGE SERVICE HOLE)
+    const type = h.type;
     allPunches.push({ position: h.position, type, station: type });
   });
   
@@ -303,7 +306,7 @@ export function PDFExportLayout({ profileData, ncGenerator, exportData, updateVe
     return acc;
   }, {} as Record<string, typeof allPunches>);
   
-  const stationOrder = ['BOLT HOLE', 'DIMPLE', 'WEB TAB', 'M SERVICE HOLE', 'SMALL SERVICE HOLE', 'SERVICE', 'CORNER BRACKETS'];
+  const stationOrder = ['BOLT HOLE', 'DIMPLE', 'WEB TAB', 'M SERVICE HOLE', 'SMALL SERVICE HOLE', 'LARGE SERVICE HOLE', 'SERVICE', 'CORNER BRACKETS'];
   
   // Format current date/time
   const now = new Date();

@@ -54,8 +54,8 @@ export const PUNCH_DIMENSIONS: Record<string, PunchDimension> = {
   'SMALL SERVICE HOLE': {
     hitCode: '.5',
     station: 'SMALL SERVICE HOLE',
-    description: '110mm round Service Hole',
-    diameter: 110,
+    description: '115mm round Service Hole',
+    diameter: 115,
     shape: 'round',
   },
   
@@ -70,9 +70,9 @@ export const PUNCH_DIMENSIONS: Record<string, PunchDimension> = {
   'LARGE SERVICE HOLE': {
     hitCode: '.7',
     station: 'LARGE SERVICE HOLE',
-    description: '200mm x 400mm Service Hole',
-    width: 200,
-    height: 400,
+    description: '400mm x 200mm Service Hole',
+    width: 400,
+    height: 200,
     shape: 'oval',
   },
   
@@ -133,8 +133,8 @@ export const PUNCH_DIMENSIONS_TABLE = [
   { hitCode: 'Hit .2', station: 'DIMPLE', description: '5mm round Stitch' },
   { hitCode: 'Hit .3', station: 'WEB TAB', description: '70mm (h) x 45mm (w), Web Connection Tab' },
   { hitCode: 'Hit .4', station: 'SERVICE', description: '300mm (h) x 115mm (w) Stub Connection Point' },
-  { hitCode: 'Hit .5', station: 'SMALL SERVICE HOLE', description: '110mm round Service Hole' },
+  { hitCode: 'Hit .5', station: 'SMALL SERVICE HOLE', description: '115mm round Service Hole' },
   { hitCode: 'Hit .6', station: 'M SERVICE HOLE', description: '200mm round Service Hole' },
-  { hitCode: 'Hit .7', station: 'LARGE SERVICE HOLE', description: '200mm x 400mm Service Hole' },
+  { hitCode: 'Hit .7', station: 'LARGE SERVICE HOLE', description: '400mm x 200mm Service Hole' },
 ];
 
