@@ -113,12 +113,35 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
 
   const { svgWidth, svgHeight, profileLength, profileHeight, offsetX, offsetY, scale, flangeHeight, topBoltY, bottomBoltY, legendSpacing, calculations } = svgData;
 
-  // Get hole diameter in pixels based on actual dimensions and consistent scale
-  const getHoleDiameter = (holeType: string) => {
-    const actualDiameter = holeType.includes('200') ? 200 : 
-                          holeType.includes('150') ? 150 : 
-                          holeType.includes('110') ? 110 : 50;
-    return Math.max(actualDiameter * scale, 3); // Use same scale as profile, minimum 3px for visibility
+  // Get service hole dimensions and color based on punch type
+  const getServiceHoleProps = (serviceHoleType: string) => {
+    switch (serviceHoleType) {
+      case 'SMALL SERVICE HOLE':
+        return {
+          width: 115 * scale,
+          height: 115 * scale,
+          shape: 'circle' as const,
+          fill: '#06b6d4', // cyan-500
+          stroke: '#0891b2', // cyan-600
+        };
+      case 'LARGE SERVICE HOLE':
+        return {
+          width: 400 * scale,
+          height: 200 * scale,
+          shape: 'ellipse' as const,
+          fill: '#6366f1', // indigo-500
+          stroke: '#4f46e5', // indigo-600
+        };
+      case 'M SERVICE HOLE':
+      default:
+        return {
+          width: 200 * scale,
+          height: 200 * scale,
+          shape: 'circle' as const,
+          fill: '#3b82f6', // blue-500
+          stroke: '#2563eb', // blue-600
+        };
+    }
   };
 
   // Component to render stub pattern based on provided SVG
@@ -427,19 +450,40 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
                     
                     {/* Service holes */}
                     {calculations.serviceHoles?.filter(hole => hole.active).map((hole, index) => {
-                      const radius = getHoleDiameter(profileData.holeType) / 2;
-                      return (
-                        <circle
-                          key={`service-${index}`}
-                          cx={offsetX + hole.position * scale}
-                          cy={offsetY + profileHeight / 2}
-                          r={radius}
-                          fill="#3b82f6"
-                          stroke="#2563eb"
-                          strokeWidth="1"
-                          opacity="0.8"
-                        />
-                      );
+                      const props = getServiceHoleProps(hole.type);
+                      const centerX = offsetX + hole.position * scale;
+                      const centerY = offsetY + profileHeight / 2;
+                      
+                      if (props.shape === 'ellipse') {
+                        // Oval shape for LARGE SERVICE HOLE (400x200mm)
+                        return (
+                          <ellipse
+                            key={`service-${index}`}
+                            cx={centerX}
+                            cy={centerY}
+                            rx={Math.max(props.width / 2, 3)}
+                            ry={Math.max(props.height / 2, 3)}
+                            fill={props.fill}
+                            stroke={props.stroke}
+                            strokeWidth="1"
+                            opacity="0.8"
+                          />
+                        );
+                      } else {
+                        // Circle for SMALL and M SERVICE HOLES
+                        return (
+                          <circle
+                            key={`service-${index}`}
+                            cx={centerX}
+                            cy={centerY}
+                            r={Math.max(props.width / 2, 3)}
+                            fill={props.fill}
+                            stroke={props.stroke}
+                            strokeWidth="1"
+                            opacity="0.8"
+                          />
+                        );
+                      }
                     })}
                     
                     {/* Dimples */}
@@ -628,23 +672,44 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
             />
           ))}
         
-        {/* Service holes (blue circles) - scaled consistently with actual dimensions */}
+        {/* Service holes - different shapes and colors based on type */}
         {calculations.serviceHoles
           .filter(hole => hole.active)
           .map((hole, index) => {
-            const radius = getHoleDiameter(profileData.holeType) / 2;
-            return (
-              <circle
-                key={`service-${index}`}
-                cx={offsetX + hole.position * scale}
-                cy={offsetY + profileHeight / 2}
-                r={radius}
-                fill="#3b82f6"
-                stroke="#2563eb"
-                strokeWidth="1"
-                opacity="0.8"
-              />
-            );
+            const props = getServiceHoleProps(hole.type);
+            const centerX = offsetX + hole.position * scale;
+            const centerY = offsetY + profileHeight / 2;
+            
+            if (props.shape === 'ellipse') {
+              // Oval shape for LARGE SERVICE HOLE (400x200mm)
+              return (
+                <ellipse
+                  key={`service-${index}`}
+                  cx={centerX}
+                  cy={centerY}
+                  rx={Math.max(props.width / 2, 3)}
+                  ry={Math.max(props.height / 2, 3)}
+                  fill={props.fill}
+                  stroke={props.stroke}
+                  strokeWidth="1"
+                  opacity="0.8"
+                />
+              );
+            } else {
+              // Circle for SMALL and M SERVICE HOLES
+              return (
+                <circle
+                  key={`service-${index}`}
+                  cx={centerX}
+                  cy={centerY}
+                  r={Math.max(props.width / 2, 3)}
+                  fill={props.fill}
+                  stroke={props.stroke}
+                  strokeWidth="1"
+                  opacity="0.8"
+                />
+              );
+            }
           })}
         
         {/* Dimples (small diamonds) - render at both top & bottom flanges */}
@@ -888,11 +953,25 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
             <span className="text-body">Web Tabs</span>
           </div>
           
-          {/* Service holes legend */}
-          <div className="flex items-center space-x-2">
-            <div className="w-4 h-4 rounded-full bg-blue-500 border border-blue-600 opacity-80"></div>
-            <span className="text-body">Service Holes ({profileData.holeType})</span>
-          </div>
+          {/* Service holes legend - show all active types */}
+          {calculations.serviceHoles?.some(h => h.active && h.type === 'M SERVICE HOLE') && (
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 rounded-full bg-blue-500 border border-blue-600 opacity-80"></div>
+              <span className="text-body">M Service Hole (Ø200mm)</span>
+            </div>
+          )}
+          {calculations.serviceHoles?.some(h => h.active && h.type === 'SMALL SERVICE HOLE') && (
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 rounded-full bg-cyan-500 border border-cyan-600 opacity-80"></div>
+              <span className="text-body">Small Service Hole (Ø115mm)</span>
+            </div>
+          )}
+          {calculations.serviceHoles?.some(h => h.active && h.type === 'LARGE SERVICE HOLE') && (
+            <div className="flex items-center space-x-2">
+              <div className="w-6 h-3 rounded-full bg-indigo-500 border border-indigo-600 opacity-80"></div>
+              <span className="text-body">Large Service Hole (400×200mm)</span>
+            </div>
+          )}
           
           {/* Service/Corner Brackets legend */}
           <div className="flex items-center space-x-2">
