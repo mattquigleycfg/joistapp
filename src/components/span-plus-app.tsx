@@ -122,6 +122,9 @@ export function SpanPlusApp() {
     getUpdateVersion 
   } = useNCGenerator(profileData, exportData);
 
+  // Track update version in state to force re-renders when manual punches change
+  const [updateVersionState, setUpdateVersionState] = useState(0);
+
   // Update program name when profile settings change
   useEffect(() => {
     const newProgramName = generateProgramName(profileData);
@@ -152,6 +155,8 @@ export function SpanPlusApp() {
         // Set manual punches, pass profileType for bolt/web tab sync on bearers
         setManualPunches(punches);
       }
+      // Update state to trigger re-render for PDF export
+      setUpdateVersionState(ncGenerator.getUpdateVersion());
     }
   }, [ncGenerator, clearManualMode, updateCalculations, setManualPunches]);
 
