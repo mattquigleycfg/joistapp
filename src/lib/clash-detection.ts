@@ -309,41 +309,75 @@ export function detectClashes(
 
   // 6. Spacing Violations
   
-  // 6a. Dimples not at 450mm (bearer) or 409.5mm (joist) intervals
+  // 6a. Dimples not at correct intervals
   const dimplePositions = calculations.dimples
     .filter(d => d.active)
     .map(d => d.position)
     .sort((a, b) => a - b);
   
-  const expectedDimpleSpacing = isBearer ? MANUFACTURING_CONSTANTS.DIMPLE_SPACING_BEARER : MANUFACTURING_CONSTANTS.DIMPLE_SPACING_JOIST;
-  const dimpleStart = isBearer ? MANUFACTURING_CONSTANTS.DIMPLE_START_BEARER : MANUFACTURING_CONSTANTS.DIMPLE_START_JOIST;
-  
-  dimplePositions.forEach((pos, index) => {
-    if (index === 0) {
-      if (Math.abs(pos - dimpleStart) > 1) {
-        issues.push({
-          type: 'position-conflict',
-          position: pos,
-          element1: 'First Dimple',
-          element2: 'Expected Start',
-          issue: `First dimple should be at ${dimpleStart}mm, found at ${pos}mm`,
-          severity: 'warning',
-        });
+  if (isBearer) {
+    // Bearer: 450mm intervals starting at 479.5mm
+    const expectedDimpleSpacing = MANUFACTURING_CONSTANTS.DIMPLE_SPACING_BEARER;
+    const dimpleStart = MANUFACTURING_CONSTANTS.DIMPLE_START_BEARER;
+    
+    dimplePositions.forEach((pos, index) => {
+      if (index === 0) {
+        if (Math.abs(pos - dimpleStart) > 1) {
+          issues.push({
+            type: 'position-conflict',
+            position: pos,
+            element1: 'First Dimple',
+            element2: 'Expected Start',
+            issue: `First dimple should be at ${dimpleStart}mm, found at ${pos}mm`,
+            severity: 'warning',
+          });
+        }
+      } else {
+        const expectedPos = dimpleStart + (index * expectedDimpleSpacing);
+        if (Math.abs(pos - expectedPos) > 1) {
+          issues.push({
+            type: 'position-conflict',
+            position: pos,
+            element1: `Dimple ${index + 1}`,
+            element2: 'Expected Position',
+            issue: `Expected at ${roundHalf(expectedPos)}mm, found at ${pos}mm (${expectedDimpleSpacing}mm spacing required)`,
+            severity: 'warning',
+          });
+        }
       }
-    } else {
-      const expectedPos = dimpleStart + (index * expectedDimpleSpacing);
-      if (Math.abs(pos - expectedPos) > 1) {
-        issues.push({
-          type: 'position-conflict',
-          position: pos,
-          element1: `Dimple ${index + 1}`,
-          element2: 'Expected Position',
-          issue: `Expected at ${roundHalf(expectedPos)}mm, found at ${pos}mm (${expectedDimpleSpacing}mm spacing required)`,
-          severity: 'warning',
-        });
+    });
+  } else {
+    // Joist: 600mm base intervals with ±75mm offsets (75, 525, 675, 1125, 1275...)
+    const baseInterval = MANUFACTURING_CONSTANTS.DIMPLE_BASE_INTERVAL_JOIST;
+    const offset = MANUFACTURING_CONSTANTS.DIMPLE_OFFSET_JOIST;
+    const expectedPositions: number[] = [offset]; // First at 75mm
+    
+    // Generate expected positions based on pattern
+    for (let basePos = baseInterval; basePos < profileLength - offset; basePos += baseInterval) {
+      expectedPositions.push(basePos - offset); // -75
+      if (basePos + offset < profileLength - offset) {
+        expectedPositions.push(basePos + offset); // +75
       }
     }
-  });
+    expectedPositions.push(profileLength - offset); // End dimple at length - 75
+    
+    // Check if actual positions match expected
+    dimplePositions.forEach((pos, index) => {
+      if (index < expectedPositions.length) {
+        const expectedPos = expectedPositions[index];
+        if (Math.abs(pos - expectedPos) > 1) {
+          issues.push({
+            type: 'position-conflict',
+            position: pos,
+            element1: `Dimple ${index + 1}`,
+            element2: 'Expected Position',
+            issue: `Expected at ${roundHalf(expectedPos)}mm, found at ${pos}mm (600mm ±75mm pattern required)`,
+            severity: 'warning',
+          });
+        }
+      }
+    });
+  }
 
   // 6. Span table violations
   if (profileData.kpaRating && isJoist) {

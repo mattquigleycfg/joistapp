@@ -419,11 +419,23 @@ export class NCFileGenerator {
       this.calculations.boltHoles.push({ position: length - 30, active: true, type: 'BOLT HOLE' });
     }
 
-    // Dimples: every 409.5 mm CTS starting from 509.5 mm (if enabled)
+    // Dimples: 600mm intervals with ±75mm offsets (if enabled)
     if (isDimpleEnabled) {
-      for (let pos = 509.5; pos <= length - 100; pos += 409.5) {
-        this.calculations.dimples.push({ position: pos, active: true, type: 'DIMPLE' });
+      // First dimple at 75mm
+      this.calculations.dimples.push({ position: 75, active: true, type: 'DIMPLE' });
+      
+      // Paired dimples at 600mm intervals: -75 and +75 from base positions
+      for (let basePos = 600; basePos < length - 75; basePos += 600) {
+        // Dimple before base position (-75)
+        this.calculations.dimples.push({ position: basePos - 75, active: true, type: 'DIMPLE' });
+        // Dimple after base position (+75)
+        if (basePos + 75 < length - 75) {
+          this.calculations.dimples.push({ position: basePos + 75, active: true, type: 'DIMPLE' });
+        }
       }
+      
+      // End dimple at length - 75
+      this.calculations.dimples.push({ position: length - 75, active: true, type: 'DIMPLE' });
     }
 
     // Generate coordinated holes to prevent clashes
@@ -1097,11 +1109,23 @@ export class NCFileGenerator {
       this.calculations.boltHoles.push({ position: length - 30, active: true, type: 'BOLT HOLE' });
     }
 
-    // Dimples: every 409.5mm CTS starting from 509.5mm (if enabled)
+    // Dimples: 600mm intervals with ±75mm offsets (if enabled)
     if (isDimpleEnabled) {
-      for (let pos = 509.5; pos <= length - 100; pos += 409.5) {
-        this.calculations.dimples.push({ position: pos, active: true, type: 'DIMPLE' });
+      // First dimple at 75mm
+      this.calculations.dimples.push({ position: 75, active: true, type: 'DIMPLE' });
+      
+      // Paired dimples at 600mm intervals: -75 and +75 from base positions
+      for (let basePos = 600; basePos < length - 75; basePos += 600) {
+        // Dimple before base position (-75)
+        this.calculations.dimples.push({ position: basePos - 75, active: true, type: 'DIMPLE' });
+        // Dimple after base position (+75)
+        if (basePos + 75 < length - 75) {
+          this.calculations.dimples.push({ position: basePos + 75, active: true, type: 'DIMPLE' });
+        }
       }
+      
+      // End dimple at length - 75
+      this.calculations.dimples.push({ position: length - 75, active: true, type: 'DIMPLE' });
     }
 
     // SCREENS MODE: Web tabs at specific positions

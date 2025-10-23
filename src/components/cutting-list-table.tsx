@@ -51,6 +51,7 @@ export const CuttingListTable: React.FC<CuttingListTableProps> = ({
   if (!ncGenerator) return null;
 
   const calcs = ncGenerator.getCalculations();
+  const isBearer = partCode.startsWith('B');
 
   const boltPositions = calcs.boltHoles.filter((h) => h.active).map((h) => roundOne(h.position));
   const dimplePositions = calcs.dimples.filter((d) => d.active).map((d) => roundOne(d.position));
@@ -59,7 +60,8 @@ export const CuttingListTable: React.FC<CuttingListTableProps> = ({
   const stubPositions = calcs.stubs.filter((s) => s.active).map((s) => roundOne(s.position));
 
   const boltSummary = formatPunchSummary(boltPositions);
-  const dimpleSummary = formatPunchSummary(dimplePositions, 450);
+  // Bearers have uniform 450mm spacing, joists have 600mm ±75mm pattern (non-uniform)
+  const dimpleSummary = formatPunchSummary(dimplePositions, isBearer ? 450 : undefined);
   const webTabSummary = formatPunchSummary(webTabPositions, webTabPositions.length > 1 ? webTabPositions[1] - webTabPositions[0] : undefined);
   const serviceSpacing = serviceHolePositions.length > 1 ? Math.round(serviceHolePositions[1] - serviceHolePositions[0]) : undefined;
   const serviceHoleSummary = formatPunchSummary(serviceHolePositions, serviceSpacing);

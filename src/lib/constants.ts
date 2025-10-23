@@ -21,9 +21,12 @@ export const MANUFACTURING_CONSTANTS = {
   
   // Dimple spacing
   DIMPLE_SPACING_BEARER: 450,
-  DIMPLE_SPACING_JOIST: 409.5,
   DIMPLE_START_BEARER: 479.5,
-  DIMPLE_START_JOIST: 509.5,
+  
+  // Joist dimple pattern: 600mm base intervals with ±75mm offsets
+  // Pattern: 75, 525, 675, 1125, 1275, 1725, 1875... ending at length-75
+  DIMPLE_BASE_INTERVAL_JOIST: 600,
+  DIMPLE_OFFSET_JOIST: 75,
   
   // Span table limits
   SPAN_LIMITS: {
