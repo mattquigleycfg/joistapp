@@ -138,7 +138,7 @@ export const ProfileForm = React.memo(function ProfileForm({ data, onChange }: P
             
             if (shouldActivateJoistBox) {
               toast.info('Joist Box mode activated', {
-                description: 'Triple SERVICE punches at joist positions per span table'
+                description: 'Double SERVICE punches (±12mm) and dimples at joist positions per span table'
               });
             }
           }

@@ -53,6 +53,7 @@ interface PunchEditorTableProps {
   punchStations?: any[];
   onPunchStationsUpdate?: (stations: any[]) => void;
   updateVersion?: number;
+  joistBox?: boolean;
 }
 
 // Color mapping for punch types
@@ -85,7 +86,8 @@ export function PunchEditorTable({
   profileType,
   punchStations,
   onPunchStationsUpdate,
-  updateVersion 
+  updateVersion,
+  joistBox 
 }: PunchEditorTableProps) {
   const [punches, setPunches] = useState<Punch[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -480,10 +482,15 @@ export function PunchEditorTable({
             )}
           </div>
         </div>
-        {isBearer && (
+        {isBearer && !joistBox && (
           <div className="text-sm text-amber-600 bg-amber-50 p-2 rounded-md">
             ⚠️ <strong>Bearer Mode:</strong> Bolt holes automatically align with web tabs using alternating ±29.5mm offset pattern. 
             (Position 1: -29.5mm, Position 2: +29.5mm, Position 3: -29.5mm, etc.). End bolt holes at ±30mm remain fixed.
+          </div>
+        )}
+        {isBearer && joistBox && (
+          <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded-md">
+            ⚠️ <strong>Joist Box Mode:</strong> Dimples replace bolt holes at joist positions. Double SERVICE hits (±12mm) at each joist location, central hit removed. Web tabs suppressed.
           </div>
         )}
         </div>

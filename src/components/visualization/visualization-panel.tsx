@@ -909,6 +909,7 @@ export function VisualizationPanel({ profileData, ncGenerator, onPunchesUpdate, 
         profileType={profileData.profileType}
         punchStations={profileData.punchStations}
         updateVersion={updateVersion}
+        joistBox={profileData.joistBox}
         onPunchStationsUpdate={(stations) => {
           // Update profile data with new station states
           if (onProfileDataUpdate) {

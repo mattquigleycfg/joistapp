@@ -276,7 +276,8 @@ export function detectClashes(
   });
 
   // 5. Bearer bolt hole alignment - Must follow ±29.5mm alternating pattern
-  if (isBearer) {
+  // Skip this check in joistBox mode as bolt holes are replaced with dimples
+  if (isBearer && !profileData.joistBox) {
     const sortedWebTabs = calculations.webHoles
       .filter(w => w.active)
       .sort((a, b) => a.position - b.position);

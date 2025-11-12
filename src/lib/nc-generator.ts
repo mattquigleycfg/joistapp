@@ -309,8 +309,8 @@ export class NCFileGenerator {
     const isBoltHoleEnabled = !punchStations || punchStations.some(ps => ps.station === 'BOLT HOLE' && ps.enabled);
     const isServiceEnabled = !punchStations || punchStations.some(ps => ps.station === 'SERVICE' && ps.enabled);
     
-    // End bolt holes: always at 30 mm from ends (if enabled)
-    if (isBoltHoleEnabled) {
+    // End bolt holes: always at 30 mm from ends (if enabled) - skip in joistBox mode as they become dimples
+    if (isBoltHoleEnabled && !joistBox) {
       this.calculations.boltHoles.push({ position: MANUFACTURING_CONSTANTS.END_BOLT_POSITION, active: true, type: 'BOLT HOLE' });
       this.calculations.boltHoles.push({ position: length - MANUFACTURING_CONSTANTS.END_BOLT_POSITION, active: true, type: 'BOLT HOLE' });
     }
@@ -325,8 +325,15 @@ export class NCFileGenerator {
       }
     }
 
-    // JOIST BOX MODE: Triple SERVICE punches at joist positions, suppresses web tabs
+    // JOIST BOX MODE: Double SERVICE punches at joist positions (±12mm), dimples instead of bolt holes
     if (joistBox && isServiceEnabled) {
+      // End dimples: convert end bolt holes to dimples in joistBox mode
+      const isDimpleEnabled = !punchStations || punchStations.some(ps => ps.station === 'DIMPLE' && ps.enabled);
+      if (isDimpleEnabled) {
+        this.calculations.dimples.push({ position: MANUFACTURING_CONSTANTS.END_BOLT_POSITION, active: true, type: 'DIMPLE' });
+        this.calculations.dimples.push({ position: length - MANUFACTURING_CONSTANTS.END_BOLT_POSITION, active: true, type: 'DIMPLE' });
+      }
+      
       // Calculate joist positions starting from first joist spacing
       const startOffset = joistSpacing;
       const endOffset = length - joistSpacing;
@@ -334,17 +341,16 @@ export class NCFileGenerator {
       // Generate joist positions
       let currentPos = startOffset;
       while (currentPos <= endOffset) {
-        // Triple SERVICE hits: center, +12mm, -12mm
+        // Double SERVICE hits: +12mm and -12mm only (center removed)
         this.calculations.stubs.push({ position: roundHalf(currentPos - 12), active: true, type: 'SERVICE' });
-        this.calculations.stubs.push({ position: roundHalf(currentPos), active: true, type: 'SERVICE' });
         this.calculations.stubs.push({ position: roundHalf(currentPos + 12), active: true, type: 'SERVICE' });
         
-        // Bolt hole at exact joist position (centered, no offset) if enabled
-        if (isBoltHoleEnabled && currentPos > MANUFACTURING_CONSTANTS.MIN_CLEARANCE && currentPos < (length - MANUFACTURING_CONSTANTS.MIN_CLEARANCE)) {
-          this.calculations.boltHoles.push({ 
+        // Dimple at exact joist position (centered, no offset) - replaces bolt hole
+        if (isDimpleEnabled && currentPos > MANUFACTURING_CONSTANTS.MIN_CLEARANCE && currentPos < (length - MANUFACTURING_CONSTANTS.MIN_CLEARANCE)) {
+          this.calculations.dimples.push({ 
             position: roundHalf(currentPos), 
             active: true, 
-            type: 'BOLT HOLE' 
+            type: 'DIMPLE' 
           });
         }
         
@@ -355,7 +361,7 @@ export class NCFileGenerator {
       this.calculations.stubs.push({ position: 131, active: true, type: 'SERVICE' });
       this.calculations.stubs.push({ position: length - 131, active: true, type: 'SERVICE' });
       
-      // In joistBox mode, web tabs are suppressed - skip generateCoordinatedBearerHoles
+      // In joistBox mode, web tabs are suppressed and bolt holes are replaced with dimples
     } else {
       // NORMAL MODE: Generate coordinated holes (web tabs and service holes)
       this.generateCoordinatedBearerHoles(length, joistSpacing, holeType, punchStations);
