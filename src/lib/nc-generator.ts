@@ -419,8 +419,12 @@ export class NCFileGenerator {
     const isBoltHoleEnabled = !punchStations || punchStations.some(ps => ps.station === 'BOLT HOLE' && ps.enabled);
     const isDimpleEnabled = !punchStations || punchStations.some(ps => ps.station === 'DIMPLE' && ps.enabled);
     
-    // Joist bolt holes at 30 mm from ends (if enabled)
-    if (isBoltHoleEnabled) {
+    // Joist Box: dimples replace bolt holes at ends
+    if (endBox && isDimpleEnabled) {
+      this.calculations.dimples.push({ position: 30, active: true, type: 'DIMPLE' });
+      this.calculations.dimples.push({ position: length - 30, active: true, type: 'DIMPLE' });
+    } else if (isBoltHoleEnabled) {
+      // Joist Single: bolt holes at 30 mm from ends (if enabled)
       this.calculations.boltHoles.push({ position: 30, active: true, type: 'BOLT HOLE' });
       this.calculations.boltHoles.push({ position: length - 30, active: true, type: 'BOLT HOLE' });
     }
@@ -447,19 +451,32 @@ export class NCFileGenerator {
     // Generate coordinated holes to prevent clashes
     this.generateCoordinatedJoistHoles(length, holeType, punchStations);
 
-    // For joists, bolt holes are centered at web tab positions (no offset)
-    if (isBoltHoleEnabled) {
-      const webTabPositions = this.calculations.webHoles
-        .filter(w => w.active)
-        .map(w => w.position);
-      
-      webTabPositions.forEach(webPos => {
-        // Check if bolt hole already exists at this position
+    // For Joist Box, dimples are centered at web tab positions (no offset)
+    // For Joist Single, bolt holes are centered at web tab positions (no offset)
+    const webTabPositions = this.calculations.webHoles
+      .filter(w => w.active)
+      .map(w => w.position);
+    
+    webTabPositions.forEach(webPos => {
+      if (endBox && isDimpleEnabled) {
+        // Joist Box: Add dimple at web tab position
+        const existingDimple = this.calculations.dimples.some(dimple => 
+          Math.abs(dimple.position - webPos) < MANUFACTURING_CONSTANTS.POSITION_TOLERANCE
+        );
+        
+        if (!existingDimple && webPos > 50 && webPos < (length - 50)) {
+          this.calculations.dimples.push({ 
+            position: roundHalf(webPos), 
+            active: true, 
+            type: 'DIMPLE' 
+          });
+        }
+      } else if (isBoltHoleEnabled) {
+        // Joist Single: Add bolt hole at web tab position
         const existingBolt = this.calculations.boltHoles.some(bolt => 
           Math.abs(bolt.position - webPos) < MANUFACTURING_CONSTANTS.POSITION_TOLERANCE
         );
         
-        // Add bolt hole centered at web tab position (no offset for joists)
         if (!existingBolt && webPos > 50 && webPos < (length - 50)) {
           this.calculations.boltHoles.push({ 
             position: roundHalf(webPos), 
@@ -467,8 +484,8 @@ export class NCFileGenerator {
             type: 'BOLT HOLE' 
           });
         }
-      });
-    }
+      }
+    });
 
     // Check if CORNER BRACKETS is enabled in punch stations
     const isCornerBracketsEnabled = !punchStations || punchStations.some(ps => ps.station === 'CORNER BRACKETS' && ps.enabled);
@@ -1109,8 +1126,12 @@ export class NCFileGenerator {
       (ps.station === 'M SERVICE HOLE' || ps.station === 'SMALL SERVICE HOLE' || ps.station === 'LARGE SERVICE HOLE') && ps.enabled
     );
     
-    // End bolt holes at 30mm from ends (if enabled)
-    if (isBoltHoleEnabled) {
+    // Joist Box: dimples replace bolt holes at ends
+    if (endBox && isDimpleEnabled) {
+      this.calculations.dimples.push({ position: 30, active: true, type: 'DIMPLE' });
+      this.calculations.dimples.push({ position: length - 30, active: true, type: 'DIMPLE' });
+    } else if (isBoltHoleEnabled) {
+      // Joist Single: End bolt holes at 30mm from ends (if enabled)
       this.calculations.boltHoles.push({ position: 30, active: true, type: 'BOLT HOLE' });
       this.calculations.boltHoles.push({ position: length - 30, active: true, type: 'BOLT HOLE' });
     }
@@ -1166,19 +1187,27 @@ export class NCFileGenerator {
         this.calculations.webHoles.push({ position: roundHalf(pos), active: true, type: 'WEB TAB' });
       });
       
-      // Add bolt holes centered at web tab positions (no offset for joists)
-      if (isBoltHoleEnabled) {
-        webTabPositions.forEach((webPos) => {
-          // Only add if not overlapping with end bolts (> 50mm from ends)
-          if (webPos > 50 && webPos < (length - 50)) {
+      // Add dimples (Joist Box) or bolt holes (Joist Single) centered at web tab positions (no offset for joists)
+      webTabPositions.forEach((webPos) => {
+        // Only add if not overlapping with end positions (> 50mm from ends)
+        if (webPos > 50 && webPos < (length - 50)) {
+          if (endBox && isDimpleEnabled) {
+            // Joist Box: Add dimple at web tab position
+            this.calculations.dimples.push({ 
+              position: roundHalf(webPos), 
+              active: true, 
+              type: 'DIMPLE' 
+            });
+          } else if (isBoltHoleEnabled) {
+            // Joist Single: Add bolt hole at web tab position
             this.calculations.boltHoles.push({ 
               position: roundHalf(webPos), 
               active: true, 
               type: 'BOLT HOLE' 
             });
           }
-        });
-      }
+        }
+      });
     }
 
     // Service holes: distributed evenly between web tabs at 650mm spacing
